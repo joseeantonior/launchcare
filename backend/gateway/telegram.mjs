@@ -41,7 +41,8 @@ export function startTelegram({ token, onTicket }) {
           handle(u.message).catch((e) => console.error("telegram handle:", e.message));
       }
     } catch (e) {
-      console.error("telegram poll:", e.message);
+      // surface the network-level cause (ENOTFOUND, ETIMEDOUT, ECONNREFUSED…)
+      console.error("telegram poll:", e.message, e.cause?.code ?? e.cause?.message ?? "");
       await new Promise((r) => setTimeout(r, 5000));
     }
     poll();
