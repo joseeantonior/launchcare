@@ -14,8 +14,10 @@ channels / eval runner ──► gateway ──► Novita LLM API (manager + spe
 
 | File | What it does |
 |---|---|
-| `gateway/index.mjs` | HTTP server: `/health`, `POST /tickets` (real), `POST /resolve` (eval) — ticket/run lifecycle around the crew |
-| `gateway/crew.mjs` | The crew loop: manager plans/delegates/reviews with tool calls; specialists run as nested conversations with their role's model and tools |
+| `gateway/index.mjs` | HTTP server: `/health`, `POST /tickets` (real), `POST /resolve` (eval) — ticket/run lifecycle around the crew; picks the runner; starts channel pollers |
+| `gateway/crew.mjs` | Built-in runner: manager plans/delegates/reviews with tool calls; specialists run as nested conversations with their role's model and tools |
+| `gateway/runner-hermes.mjs` | `RUNNER=hermes` — delegates the run to a Hermes profile; the assumed CLI contract lives ONLY here |
+| `gateway/telegram.mjs` | Telegram ingress via long-polling — see [channels.md](channels.md) |
 | `gateway/llm.mjs` | Novita client (OpenAI-compatible `chat/completions`), per-model cost calc, JSON extraction |
 | `gateway/tools.mjs` | Specialist tools: Stripe (live or eval-fixture), docs_search over the knowledge pack, stubs for the rest |
 | `gateway/convex.mjs` | Convex HTTP client + PII masking + 40-word summaries |
@@ -95,9 +97,19 @@ paths, strips to plain text, ~8k chars/page) and rebuilt on demand via
 source page URL. Markdown files in `backend/knowledge/` on the box are
 searched as a fallback for hand-curated docs.
 
-## Hermes
+## Runners (Hermes)
 
-When Hermes lands on the boxes, `crew.mjs` is the only file it replaces —
-keep `resolveTicket()`'s signature and swap the internals for the Hermes
-invocation. Everything else (HTTP routes, Convex recording, tools, evals,
-dashboard) stays identical.
+`RUNNER` picks the brain; everything else (channels, HTTP routes, Convex
+recording, evals, dashboard) is identical:
+
+- *(unset)* — the built-in Novita crew loop (`crew.mjs`).
+- `mock` — resolves everything `reply_only` with no LLM spend (plumbing/CI).
+- `hermes` — spawns `hermes run --profile launchcare --json`
+  (`HERMES_BIN`/`HERMES_PROFILE` override), passes the full kickoff context
+  as JSON on stdin (`runId` + `convexUrl` included so Hermes-side lifecycle
+  hooks log steps to `agency:logStep` themselves), and reads the FINAL
+  envelope as the last JSON object on stdout.
+
+The Hermes contract is an assumption from the pack's notes and lives ONLY
+in `runner-hermes.mjs` — verified end-to-end against a stub binary; adjust
+that one file when the real Hermes interface is confirmed.

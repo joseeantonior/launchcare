@@ -61,10 +61,12 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
    Step 5 in [deployment.md](deployment.md). Same script works for the
    shared-box tier (one container per tenant) if per-tenant Linodes turn
    out too expensive at the low end.
-3. **Channel connectors** — per-tenant inbound email address
-   (`acme@inbound.<domain>` via Postmark/SES webhook → `POST /tickets`),
-   Telegram bot, phone via ElevenLabs. Plus the escalation resume loop
-   (ActionLayer for operator, Telegram for founder).
+3. **Remaining channel connectors** — Telegram ingress is DONE
+   ([channels.md](channels.md), long-polling, no inbound ports). Still to
+   build: per-tenant inbound email (`acme@inbound.<domain>` via Postmark/SES
+   webhook → `POST /tickets`), phone via ElevenLabs, and the escalation
+   resume loop (ActionLayer for operator, outbound Telegram for founder —
+   the poller module already exposes the send API).
 
 ## Security notes (before real money flows)
 

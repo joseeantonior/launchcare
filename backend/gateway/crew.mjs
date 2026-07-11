@@ -110,6 +110,19 @@ async function runSpecialist({ role, delegation, log, handlers, parentStepId }) 
   return { needs_escalation: true, blocker: "specialist exceeded its turn budget" };
 }
 
+// The five kickoff context blocks manager.md declares — shared by every
+// runner (novita crew loop, hermes, future ones).
+export async function gatherContext({ convex, orgId, ticket, dir }) {
+  const [context, roles, settingsRows] = await Promise.all([
+    convex.query("agency:customerContext", { orgId, email: ticket.customerEmail }),
+    convex.query("agency:activeRoles", { orgId }),
+    convex.query("agency:listSettings", { orgId }),
+  ]);
+  const settings = Object.fromEntries(settingsRows.map((s) => [s.key, s.value]));
+  const policy = readFileSync(`${dir}/../policy/policy.md`, "utf8");
+  return { context, roles, settings, policy };
+}
+
 // Resolve one ticket end-to-end. Returns the FINAL envelope.
 export async function resolveTicket({ convex, orgId, runId, ticket, fixture, mode, dir }) {
   const log = (step) => convex.mutation("agency:logStep", { runId, ...step });
@@ -123,15 +136,8 @@ export async function resolveTicket({ convex, orgId, runId, ticket, fixture, mod
     return { action: "reply_only", summary: "mock runner", policyRefs: [] };
   }
 
-  const [context, roles, settingsRows] = await Promise.all([
-    convex.query("agency:customerContext", { orgId, email: ticket.customerEmail }),
-    convex.query("agency:activeRoles", { orgId }),
-    convex.query("agency:listSettings", { orgId }),
-  ]);
-  const settings = Object.fromEntries(settingsRows.map((s) => [s.key, s.value]));
+  const { context, roles, settings, policy } = await gatherContext({ convex, orgId, ticket, dir });
   setModelPrices(settings.modelPricesUsdPerMTok);
-
-  const policy = readFileSync(`${dir}/../policy/policy.md`, "utf8");
   const system = readFileSync(`${dir}/../prompts/manager.md`, "utf8")
     .replaceAll("{{AGENCY_NAME}}", settings.agencyName ?? "LaunchCare")
     .replaceAll("{{PRODUCT_NAME}}", settings.productName ?? "the product");

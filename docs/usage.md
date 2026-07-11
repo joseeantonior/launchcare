@@ -120,11 +120,13 @@ for the dashboard trend. If a `baseline.json` exists and passes drop below
 it, the runner **exits 1** — wire it into your merge flow as the regression
 gate.
 
-## 7. Channels (not wired yet)
+## 7. Channels
 
-Inbound email/Telegram/phone connectors and the escalation resume loop are
-the next build phase — see [architecture.md](architecture.md). Until then,
-`POST /tickets` is the ingress, and escalations surface as dashboard alerts.
+**Telegram works** — bot setup to first agent reply in ~5 minutes:
+[channels.md](channels.md). Direct HTTP ingress (`POST /tickets`) is
+documented there too. Email and phone are the next build phase
+([architecture.md](architecture.md)); escalations currently surface as
+dashboard alerts.
 
 Action vocabulary (manager FINAL envelope = eval comparison key):
 `reply_only, refund_full, refund_partial, credit, deny_refund,

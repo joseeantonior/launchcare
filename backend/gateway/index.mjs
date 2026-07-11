@@ -12,6 +12,11 @@
 import { createServer } from "node:http";
 import { convexClient } from "./convex.mjs";
 import { resolveTicket } from "./crew.mjs";
+import { resolveTicketHermes } from "./runner-hermes.mjs";
+
+// RUNNER=hermes → Hermes profile is the brain; anything else → built-in
+// Novita crew loop (RUNNER=mock short-circuits inside crew.mjs).
+const resolve = process.env.RUNNER === "hermes" ? resolveTicketHermes : resolveTicket;
 
 const dir = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 const ORG_ID = process.env.ORG_ID;
@@ -63,7 +68,7 @@ async function handleEval(body) {
 
 async function runCrew({ runId, ticket, fixture, mode }) {
   try {
-    const final = await resolveTicket({
+    const final = await resolve({
       convex, orgId: ORG_ID, runId, ticket, fixture, mode, dir,
     });
     const escalated = String(final.action ?? "").startsWith("escalate");
@@ -106,3 +111,7 @@ createServer(async (req, res) => {
     reply(500, { action: "ERROR", error: String(e.message ?? e) });
   }
 }).listen(PORT, () => console.log(`gateway up on :${PORT} (org ${ORG_ID})`));
+
+import { startTelegram } from "./telegram.mjs";
+if (process.env.TELEGRAM_TOKEN)
+  startTelegram({ token: process.env.TELEGRAM_TOKEN, onTicket: handleTicket });
