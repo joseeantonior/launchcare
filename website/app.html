@@ -81,6 +81,9 @@
       <h1>Set up your agency</h1>
       <p class="dim">Tell us about your product. We'll assemble your agent crew — a manager
         plus specialists on the right model for each job — and prepare your dedicated server.</p>
+      <p class="dim" style="margin-top:8px;">Pricing: manager <b>$4.99/mo</b> + each specialist
+        <b>$4.99–$19.99/mo</b> by model. Your starting crew totals <b>$44.95/mo</b> —
+        trim or upgrade agents anytime.</p>
       <form id="onboardForm">
         <label>Company / product name <input name="name" required placeholder="Acme Notes"></label>
         <label>Website <input name="website" type="url" required placeholder="https://acmenotes.com"></label>
@@ -97,9 +100,11 @@
     <div class="grid">
       <div class="card wide">
         <h2>Your crew</h2>
-        <p class="dim">Pick the model behind each agent — heavier models for harder jobs.</p>
-        <table><thead><tr><th>agent</th><th>job</th><th>model</th></tr></thead>
+        <p class="dim">Pick the model behind each agent — heavier models for harder jobs.
+          Your manager is $4.99/mo; each agent is $4.99–$19.99/mo by model.</p>
+        <table><thead><tr><th>agent</th><th>job</th><th>model</th><th>/mo</th></tr></thead>
           <tbody id="crewRows"></tbody></table>
+        <p id="crewTotal" style="margin-top:10px; text-align:right;"></p>
 
         <details style="margin-top:16px;">
           <summary style="cursor:pointer; color:var(--acc);">+ Add an agent</summary>
@@ -236,25 +241,29 @@ async function findMyOrg() {
   return orgs.find((o) => o._id === orgId) ?? null;
 }
 
-// Curated Novita partner models, by capability tier.
+// Curated Novita partner models with monthly price per agent, by tier.
+// Manager is a flat $4.99/mo; specialists are $4.99–$19.99/mo by model.
+const MANAGER_PRICE = 4.99;
 const MODELS = [
-  ["pa/claude-fable-5", "Claude Fable 5 — most capable"],
-  ["pa/claude-opus-4-8", "Claude Opus 4.8 — complex work"],
-  ["pa/claude-sonnet-5", "Claude Sonnet 5 — everyday tasks"],
-  ["pa/claude-haiku-4-5-20251001", "Claude Haiku 4.5 — fast & cheap"],
-  ["pa/gpt-5.4", "GPT-5.4"],
-  ["pa/gemini-2.5-pro", "Gemini 2.5 Pro"],
-  ["pa/grok-4", "Grok 4"],
+  ["pa/claude-fable-5", "Claude Fable 5 — most capable", 19.99],
+  ["pa/claude-opus-4-8", "Claude Opus 4.8 — complex work", 14.99],
+  ["pa/claude-sonnet-5", "Claude Sonnet 5 — everyday tasks", 9.99],
+  ["pa/claude-haiku-4-5-20251001", "Claude Haiku 4.5 — fast & cheap", 4.99],
+  ["pa/gpt-5.4", "GPT-5.4", 9.99],
+  ["pa/gemini-2.5-pro", "Gemini 2.5 Pro", 9.99],
+  ["pa/grok-4", "Grok 4", 9.99],
 ];
+// ponytail: unknown/custom models bill mid-tier until billing gets real
+const priceFor = (model) => MODELS.find(([id]) => id === model)?.[2] ?? 9.99;
 const AGENT_TOOLS = ["docs_search", "linkup_search", "stripe_lookup",
   "stripe_refund", "stripe_invoice", "elevenlabs_call",
   "actionlayer_start_task", "log_step"];
 
 const modelOptions = (selected) => {
   const known = MODELS.some(([id]) => id === selected);
-  return (known || !selected ? MODELS : [[selected, selected], ...MODELS])
-    .map(([id, label]) =>
-      `<option value="${esc(id)}" ${id === selected ? "selected" : ""}>${esc(label)}</option>`)
+  return (known || !selected ? MODELS : [[selected, selected, priceFor(selected)], ...MODELS])
+    .map(([id, label, price]) =>
+      `<option value="${esc(id)}" ${id === selected ? "selected" : ""}>${esc(label)} · $${price}/mo</option>`)
     .join("");
 };
 
@@ -263,8 +272,12 @@ async function loadCrew(orgId) {
   $("#crewRows").innerHTML = roles.map((r) => `<tr>
     <td><b>${esc(r.name)}</b></td><td class="dim">${esc(r.job)}</td>
     <td><select data-role-model="${r._id}" style="background:var(--bg); border:1px solid var(--line);
-        color:var(--fg); padding:6px 8px; border-radius:7px; max-width:260px;">
-      ${modelOptions(r.model)}</select></td></tr>`).join("");
+        color:var(--fg); padding:6px 8px; border-radius:7px; max-width:280px;">
+      ${modelOptions(r.model)}</select></td>
+    <td data-price>$${priceFor(r.model).toFixed(2)}</td></tr>`).join("");
+  const total = MANAGER_PRICE + roles.reduce((sum, r) => sum + priceFor(r.model), 0);
+  $("#crewTotal").innerHTML =
+    `Manager <b>$${MANAGER_PRICE}/mo</b> + ${roles.length} agents = <b>$${total.toFixed(2)}/month</b>`;
 }
 
 $("#crewRows").addEventListener("change", async (e) => {
@@ -273,6 +286,7 @@ $("#crewRows").addEventListener("change", async (e) => {
   try {
     await client().mutation("agency:updateRole", { roleId, model: e.target.value });
     toast("model updated");
+    await loadCrew(localStorage.getItem("myOrgId")); // refresh prices + total
   } catch (err) { toast(err.message); }
 });
 

@@ -75,6 +75,12 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
 
 ## Billing model
 
-Per-step tokens/cost roll up to runs (`costUsd` via the org's
-`modelPricesUsdPerMTok` setting) → per-org COGS is one `costByAgent`-style
-query away. Price = token cost × margin + box fee.
+**Revenue** — per-agent subscriptions ([user-dashboard.md](user-dashboard.md)
+→ Pricing): manager $4.99/mo + each specialist $4.99–$19.99/mo by model
+tier. Displayed and totaled in the app today; checkout not yet wired.
+
+**COGS** — per-step tokens/cost roll up to runs (`costUsd` via the org's
+`modelPricesUsdPerMTok` setting) → per-org cost is one `costByAgent`-style
+query away, plus the box fee. The tier prices are set so the margin covers
+typical token volume; the cost rollups tell you when a tenant breaks the
+model.

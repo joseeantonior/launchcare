@@ -32,6 +32,19 @@ On the home screen users can:
   someone needs them). The gateway picks new roles up on the next run; the
   manager can delegate to them right away.
 
+## Pricing
+
+- **Manager: $4.99/month** (every agency has one).
+- **Each specialist: $4.99–$19.99/month by model tier** — Haiku-class $4.99,
+  Sonnet/GPT/Gemini/Grok-class $9.99, Opus-class $14.99, Fable-class $19.99.
+  Unknown/custom models bill mid-tier ($9.99) for now.
+- The crew screen shows the per-agent price and the live monthly total;
+  model changes reprice immediately.
+- The price list is the `MODELS` table in `app.html`. **Display only today**
+  — checkout/subscription collection isn't wired yet; when real billing
+  lands, the price table moves server-side so the client can't argue about
+  it.
+
 ## Configuration (`/config.js`)
 
 The app loads `config.js` for its Convex URL and Auth0 settings.
