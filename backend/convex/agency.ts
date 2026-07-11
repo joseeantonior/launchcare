@@ -2,9 +2,10 @@
 // org-scoped). The gateway hooks its tool-call lifecycle to logStep so the
 // trace builds itself. Every mentor drill maps to one query below.
 
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { defaultCrew } from "./defaultCrew.js";
+import { internal } from "./_generated/api";
 
 const now = () => Date.now();
 
@@ -68,7 +69,24 @@ export const onboardOrganization = mutation({
         orgId, ...role, active: true, createdBy: "founder", createdAt: now(),
       });
     }
+    if (args.website) {
+      // Build the knowledge pack in the background (convex/scrape.ts).
+      await ctx.scheduler.runAfter(0, internal.scrape.scrapeWebsite, { orgId });
+    }
     return orgId;
+  },
+});
+
+export const getOrganization = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => await ctx.db.get(args.orgId),
+});
+
+// "Rescan website" from the app — schedules the knowledge-pack rebuild.
+export const rescanWebsite = mutation({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    await ctx.scheduler.runAfter(0, internal.scrape.scrapeWebsite, { orgId: args.orgId });
   },
 });
 
@@ -484,6 +502,39 @@ export const activeRoles = query({
         q.eq("orgId", args.orgId).eq("active", true),
       )
       .collect(),
+});
+
+// --------------------------------------------------------------- knowledge
+export const listKnowledge = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("knowledge")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect(),
+});
+
+// Called by the scrape action: replaces the org's knowledge pack.
+export const replaceKnowledge = internalMutation({
+  args: {
+    orgId: v.id("organizations"),
+    pages: v.array(v.object({
+      url: v.string(),
+      title: v.optional(v.string()),
+      content: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const old = await ctx.db
+      .query("knowledge")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+    for (const row of old) await ctx.db.delete(row._id);
+    for (const page of args.pages) {
+      await ctx.db.insert("knowledge", { orgId: args.orgId, ...page, fetchedAt: now() });
+    }
+    return args.pages.length;
+  },
 });
 
 // ------------------------------------------------------------------- evals

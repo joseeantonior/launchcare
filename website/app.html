@@ -125,8 +125,8 @@
       <div class="card wide">
         <h2>Next steps</h2>
         <ul class="next">
-          <li><b>Knowledge pack</b> — we'll scan <span id="siteRef">your website</span> for docs
-              and use-cases to brief your crew. <span class="pill">coming soon</span></li>
+          <li><b>Knowledge pack</b> — <span id="knowledgeStatus">scanning <span id="siteRef">your website</span>…</span>
+              <button class="btn ghost" id="rescanBtn" style="margin:0 0 0 8px; padding:3px 10px; font-size:13px;">Rescan</button></li>
           <li><b>Review your policy</b> — refund limits, escalation rules. Your crew treats it
               as law; you approve it before go-live.</li>
           <li><b>Connect Stripe</b> — a restricted key (charges:read, refunds:write) goes on
@@ -215,6 +215,21 @@ $("#onboardForm").addEventListener("submit", async (e) => {
     localStorage.setItem("myOrgId", orgId);
     toast("Agency created — your crew is ready");
     route();
+  } catch (err) { toast(err.message); }
+});
+
+async function loadKnowledge(orgId, website) {
+  const pages = await client().query("agency:listKnowledge", { orgId }).catch(() => []);
+  $("#knowledgeStatus").innerHTML = pages.length
+    ? `<b>${pages.length} pages</b> scanned from your site — your crew cites them when answering.`
+    : `scanning ${esc(website ?? "your website")}… (refresh in a minute)`;
+}
+
+$("#rescanBtn").addEventListener("click", async () => {
+  const orgId = localStorage.getItem("myOrgId");
+  try {
+    await client().mutation("agency:rescanWebsite", { orgId });
+    toast("rescanning your site — check back in a minute");
   } catch (err) { toast(err.message); }
 });
 
@@ -311,13 +326,13 @@ $("#addRoleForm").addEventListener("submit", async (e) => {
 async function renderHome(org) {
   $("#orgName").textContent = org.name;
   $("#orgSite").textContent = org.website ?? "";
-  $("#siteRef").textContent = org.website ?? "your website";
   $("#newRoleModel").innerHTML = modelOptions("pa/claude-sonnet-5");
   $("#toolChecks").innerHTML = AGENT_TOOLS.map((t) => `<label style="margin:0;">
     <input type="checkbox" value="${t}" style="width:auto;"
       ${["docs_search", "log_step"].includes(t) ? "checked" : ""}> ${t}</label>`).join("");
-  const [, settings] = await Promise.all([
+  const [, , settings] = await Promise.all([
     loadCrew(org._id),
+    loadKnowledge(org._id, org.website),
     client().query("agency:listSettings", { orgId: org._id }),
   ]);
   const email = settings.find((s) => s.key === "supportEmail")?.value;

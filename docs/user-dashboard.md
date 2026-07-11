@@ -14,10 +14,15 @@ every org and stays an admin tool.
    `managerModel`, prices placeholder), and registers the **default crew**
    from `backend/convex/defaultCrew.js` with per-role model tiers.
    Idempotent: signing in again lands on the existing org.
-3. **Home** — your crew, next-steps checklist (knowledge pack, policy
-   review, Stripe key, channels), support-email setting, and the live ops
-   view for *your org only* (the ops dashboard embedded with
+3. **Home** — your crew, next-steps checklist, support-email setting, and
+   the live ops view for *your org only* (the ops dashboard embedded with
    `?org=<id>&embed=1`, selector hidden).
+
+   The **knowledge pack** builds itself: onboarding schedules a scrape of
+   the company's website (Convex action, background); the home screen shows
+   "N pages scanned" once done, with a **Rescan** button
+   (`agency:rescanWebsite`) to rebuild after site changes. The crew's
+   `docs_search` answers from these pages, citing URLs.
 
 ## Managing the crew
 

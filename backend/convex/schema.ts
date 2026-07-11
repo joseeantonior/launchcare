@@ -219,6 +219,18 @@ export default defineSchema({
     acknowledged: v.boolean(),
   }).index("by_org_firedAt", ["orgId", "firedAt"]),
 
+  // -------------------------------------------------------------- knowledge
+  // The per-org knowledge pack: pages scraped from the tenant's website at
+  // onboarding (+ anything added later). Searched by the gateway's
+  // docs_search tool.
+  knowledge: defineTable({
+    orgId: v.id("organizations"),
+    url: v.string(),
+    title: v.optional(v.string()),
+    content: v.string(), // plain text, capped per page
+    fetchedAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
   // --------------------------------------------------------------- settings
   // Editable guardrails surfaced in the dashboard (refund limit, budgets,
   // managerModel, agencyName, productName).

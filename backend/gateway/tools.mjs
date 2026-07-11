@@ -104,19 +104,33 @@ export function makeHandlers(ctx) {
     },
 
     docs_search: async ({ query }) => {
-      let files = [];
-      try { files = readdirSync(ctx.knowledgeDir).filter((f) => f.endsWith(".md")); } catch {}
-      if (!files.length)
-        return { results: [], note: "no knowledge pack loaded on this box yet" };
       const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
       const hits = [];
+      // Primary: the org's scraped knowledge pack in Convex.
+      const pages = await ctx.convex
+        .query("agency:listKnowledge", { orgId: ctx.orgId })
+        .catch(() => []);
+      for (const p of pages) {
+        for (const sentence of p.content.split(/(?<=[.!?])\s+/)) {
+          if (terms.some((t) => sentence.toLowerCase().includes(t)))
+            hits.push({ source: p.title ?? p.url, url: p.url, excerpt: sentence.trim().slice(0, 300) });
+          if (hits.length >= 12) break;
+        }
+        if (hits.length >= 12) break;
+      }
+      // Fallback: markdown files dropped on the box.
+      let files = [];
+      try { files = readdirSync(ctx.knowledgeDir).filter((f) => f.endsWith(".md")); } catch {}
       for (const f of files) {
+        if (hits.length >= 12) break;
         for (const line of readFileSync(`${ctx.knowledgeDir}/${f}`, "utf8").split("\n")) {
           if (terms.some((t) => line.toLowerCase().includes(t)))
-            hits.push({ file: f, line: line.trim() });
+            hits.push({ source: f, excerpt: line.trim().slice(0, 300) });
           if (hits.length >= 12) break;
         }
       }
+      if (!hits.length && !pages.length && !files.length)
+        return { results: [], note: "no knowledge pack for this org yet" };
       return { results: hits };
     },
 

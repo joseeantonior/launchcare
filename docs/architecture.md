@@ -43,14 +43,18 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
 - **Tenant bootstrap**: app onboarding (full), or CLI
   (`agency:createOrganization` + `scripts/register-roles.mjs`; crew data in
   `convex/defaultCrew.js`).
+- **Website scrape → knowledge pack**: onboarding schedules a Convex action
+  (`convex/scrape.ts`) that crawls the tenant's site (homepage + ~5
+  docs-ish same-origin pages) into the org's `knowledge` table; the crew's
+  `docs_search` cites it. "Rescan" in the app rebuilds it.
 
 ## What's planned (in build order)
 
-1. **Scrape → org designer pipeline** — fetch the tenant's website, extract
-   docs/pricing/use-cases into `knowledge/*.md`, draft their `policy.md`, and
-   propose the crew (roles + model tiers). **The customer reviews the drafted
-   policy before go-live** — policy is the law; scrapers guess numbers wrong.
-   (Onboarding currently seeds the default crew; this pipeline personalizes it.)
+1. **Org designer** (rest of the onboarding pipeline) — use the scraped
+   knowledge to draft the tenant's `policy.md` and propose a personalized
+   crew (roles + model tiers) instead of the fixed default. **The customer
+   reviews the drafted policy before go-live** — policy is the law; scrapers
+   guess numbers wrong.
 2. **Provisioner** — Linode API + cloud-init from a golden image: installs
    Node + the backend folder, writes tenant env (Convex URL, org id, Novita
    key, Stripe key), starts the gateway under systemd — exactly the manual

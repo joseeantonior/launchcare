@@ -87,9 +87,13 @@ The eval runner (`evals/run.mjs`) POSTs here — see [usage.md](usage.md) §4.
 
 ## Knowledge pack
 
-`docs_search` searches `backend/knowledge/*.md`. Drop the scraped/curated
-product docs there during onboarding (the future scrape pipeline's output).
-Empty dir → the tool says "no knowledge pack loaded".
+`docs_search` searches the org's **knowledge table in Convex** — filled
+automatically at onboarding by `convex/scrape.ts` (fetches the tenant's
+website, follows up to 5 same-origin links preferring docs/help/pricing
+paths, strips to plain text, ~8k chars/page) and rebuilt on demand via
+`agency:rescanWebsite` (the "Rescan" button in the app). Results cite the
+source page URL. Markdown files in `backend/knowledge/` on the box are
+searched as a fallback for hand-curated docs.
 
 ## Hermes
 
