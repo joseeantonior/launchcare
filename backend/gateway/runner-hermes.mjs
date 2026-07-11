@@ -37,8 +37,10 @@ MODE: ${mode}${mode === "eval"
     ? " — verify facts against the fixture in CUSTOMER CONTEXT; never touch live systems."
     : ""}
 
-TRACE LOGGING (mandatory): after each envelope (plan/delegate/review/escalation/final),
-log it by running this in your terminal (stepType and a <=40-word PII-masked summary):
+TRACE LOGGING (mandatory): log each envelope (plan/delegate/review/escalation/final)
+via the curl below (stepType and a <=40-word PII-masked summary). BATCH them:
+chain several logs in ONE terminal call with && instead of separate calls —
+each terminal round-trip costs seconds:
 curl -s -X POST ${process.env.CONVEX_URL}/api/mutation -H 'Content-Type: application/json' \\
   -d '{"path":"agency:logStep","format":"json","args":{"runId":"${runId}","agentRole":"manager","stepType":"plan","inputSummary":"..."}}'
 

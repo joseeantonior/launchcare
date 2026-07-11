@@ -177,4 +177,4 @@ async function pumpDemoTickets() {
 ensureTelegram();
 pumpDemoTickets();
 setInterval(ensureTelegram, 30_000);
-setInterval(pumpDemoTickets, 10_000);
+setInterval(pumpDemoTickets, 2_000);
