@@ -1,19 +1,29 @@
-// LaunchCare — Convex schema
-// Designed against the AI-as-Agency rubric:
+// LaunchCare — Convex schema (multi-tenant).
+// One Convex deployment serves every org; each org's Hermes box is isolated,
+// the data layer is shared and scoped by orgId.
 //  - steps.parentStepId        -> trace TREE (who called whom)           [Observability L4]
 //  - steps.tokens/cost/latency -> cost per step, cost-by-agent queries    [Observability L4, Cost 1x]
 //  - runs.promptVersion        -> compare versions, diff runs             [Evals L3-L5]
 //  - alerts                    -> "show an alert that actually fired"     [Observability L5]
-//  - agentRoles                -> manager can spawn roles (org L5) and a
-//                                 volunteer can create one via UI         [Mgmt UI L5]
+//  - agentRoles.model          -> model tier per role (set per complexity)
 //  - customers + tickets       -> "this user's past" memory layer         [Memory L4-L5]
 
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // ---------------------------------------------------------- organizations
+  // One row per company that signs up. createOrganization seeds settings.
+  organizations: defineTable({
+    name: v.string(),
+    website: v.optional(v.string()),
+    auth0UserId: v.optional(v.string()), // owner, once Auth0 lands
+    createdAt: v.number(),
+  }).index("by_auth0UserId", ["auth0UserId"]),
+
   // ---------------------------------------------------------------- tickets
   tickets: defineTable({
+    orgId: v.id("organizations"),
     source: v.union(
       v.literal("email"),
       v.literal("telegram"),
@@ -49,12 +59,13 @@ export default defineSchema({
     receivedAt: v.number(),
     resolvedAt: v.optional(v.number()),
   })
-    .index("by_status", ["status"])
-    .index("by_customerEmail", ["customerEmail"])
-    .index("by_receivedAt", ["receivedAt"]),
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_email", ["orgId", "customerEmail"])
+    .index("by_org_receivedAt", ["orgId", "receivedAt"]),
 
   // -------------------------------------------------------------- customers
   customers: defineTable({
+    orgId: v.id("organizations"),
     email: v.string(),
     name: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
@@ -63,11 +74,12 @@ export default defineSchema({
     signupAt: v.optional(v.number()),
     riskFlags: v.optional(v.array(v.string())), // e.g. ["repeat_refunder"]
     notes: v.optional(v.string()),
-  }).index("by_email", ["email"]),
+  }).index("by_org_email", ["orgId", "email"]),
 
   // ------------------------------------------------------------------- runs
   // One run = one full crew execution against one ticket (or eval case).
   runs: defineTable({
+    orgId: v.id("organizations"),
     ticketId: v.optional(v.id("tickets")),
     kind: v.union(v.literal("ticket"), v.literal("eval"), v.literal("demo")),
     promptVersion: v.string(), // git tag, e.g. "v0.3" — enables run diffing
@@ -85,14 +97,13 @@ export default defineSchema({
     finalAction: v.optional(v.string()), // action vocabulary — see README
     failureReason: v.optional(v.string()),
   })
-    .index("by_ticket", ["ticketId"])
-    .index("by_status", ["status"])
-    .index("by_promptVersion", ["promptVersion"])
-    .index("by_startedAt", ["startedAt"]),
+    .index("by_org", ["orgId"])
+    .index("by_ticket", ["ticketId"]),
 
   // ------------------------------------------------------------------ steps
   // The trace. parentStepId gives the who-called-whom tree.
   steps: defineTable({
+    orgId: v.id("organizations"),
     runId: v.id("runs"),
     parentStepId: v.optional(v.id("steps")),
     agentRole: v.string(), // "manager" | "billing_specialist" | ...
@@ -121,18 +132,18 @@ export default defineSchema({
     startedAt: v.number(),
   })
     .index("by_run", ["runId"])
-    .index("by_parent", ["parentStepId"])
-    .index("by_agentRole", ["agentRole"])
-    .index("by_startedAt", ["startedAt"]),
+    .index("by_org_startedAt", ["orgId", "startedAt"]),
 
   // ------------------------------------------------------------- agentRoles
   // Rows here ARE the org chart. Manager inserts a row when it spawns a
   // role mid-task (org L5). A volunteer inserts one via the dashboard
   // during the management-UI test (UI L5).
   agentRoles: defineTable({
+    orgId: v.id("organizations"),
     name: v.string(),
     job: v.string(),
     tools: v.array(v.string()),
+    model: v.string(), // Novita model id, e.g. "deepseek/deepseek-v3" — per-role tier
     guardrails: v.object({
       maxCostUsdPerTask: v.number(),
       maxToolCalls: v.number(),
@@ -148,11 +159,12 @@ export default defineSchema({
     ),
     createdAt: v.number(),
   })
-    .index("by_name", ["name"])
-    .index("by_active", ["active"]),
+    .index("by_org_name", ["orgId", "name"])
+    .index("by_org_active", ["orgId", "active"]),
 
   // ------------------------------------------------------------------ evals
   evalCases: defineTable({
+    orgId: v.id("organizations"),
     caseId: v.string(), // "T01"..."T20"
     category: v.string(),
     customerFixture: v.object({
@@ -170,18 +182,17 @@ export default defineSchema({
       mustNot: v.optional(v.array(v.string())),
       policyRefs: v.optional(v.array(v.string())),
     }),
-  })
-    .index("by_caseId", ["caseId"])
-    .index("by_category", ["category"]),
+  }).index("by_org_caseId", ["orgId", "caseId"]),
 
   evalRuns: defineTable({
+    orgId: v.id("organizations"),
     promptVersion: v.string(),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     passCount: v.number(),
     failCount: v.number(),
     notes: v.optional(v.string()),
-  }).index("by_promptVersion", ["promptVersion"]),
+  }).index("by_org", ["orgId"]),
 
   evalResults: defineTable({
     evalRunId: v.id("evalRuns"),
@@ -194,6 +205,7 @@ export default defineSchema({
 
   // ----------------------------------------------------------------- alerts
   alerts: defineTable({
+    orgId: v.id("organizations"),
     type: v.union(
       v.literal("run_failed"),
       v.literal("cost_spike"),
@@ -205,13 +217,15 @@ export default defineSchema({
     thresholdInfo: v.optional(v.string()),
     firedAt: v.number(),
     acknowledged: v.boolean(),
-  }).index("by_firedAt", ["firedAt"]),
+  }).index("by_org_firedAt", ["orgId", "firedAt"]),
 
   // --------------------------------------------------------------- settings
-  // Editable guardrails surfaced in the dashboard (refund limit, budgets).
+  // Editable guardrails surfaced in the dashboard (refund limit, budgets,
+  // managerModel, agencyName, productName).
   settings: defineTable({
+    orgId: v.id("organizations"),
     key: v.string(),
     value: v.any(),
     updatedAt: v.number(),
-  }).index("by_key", ["key"]),
+  }).index("by_org_key", ["orgId", "key"]),
 });

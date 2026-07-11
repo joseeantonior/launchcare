@@ -11,7 +11,6 @@
 // (rubric: "fails a release if quality drops").
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
 
 const dir = new URL(".", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -31,22 +30,17 @@ const cases = readFileSync(`${dir}cases.jsonl`, "utf8")
   .filter((c) => !onlyCase || c.caseId === onlyCase);
 
 // ---------------------------------------------------------------------------
-// ADAPTER — the only thing you edit. Given one eval case, run your crew and
-// return { action, summary }. Two common wirings:
-//
-// (a) CLI: shell out to your Hermes entrypoint, read the final JSON envelope:
-//     const out = execSync(`hermes run --profile launchcare --json`, {
-//       input: JSON.stringify({ ticket: c, mode: "eval" }), encoding: "utf8" });
-//     return JSON.parse(out);              // expects { action, summary }
-//
-// (b) HTTP: POST the case to a local endpoint your gateway exposes.
-//
-// Keep mode:"eval" so tickets write to Convex with source "eval" and never
-// touch the real inbox or Stripe live mode.
+// ADAPTER — POSTs each case to the gateway's eval endpoint. Start it first:
+//   ORG_ID=... CONVEX_URL=... NOVITA_API_KEY=... node gateway/index.mjs
+// Eval mode uses fixture-backed tools: no real inbox, no live Stripe.
+const GATEWAY = (process.env.GATEWAY_URL ?? "http://localhost:8787").replace(/\/$/, "");
 async function resolveTicket(c) {
-  throw new Error(
-    "Wire resolveTicket() to your agent entrypoint (see comment above)."
-  );
+  const res = await fetch(`${GATEWAY}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ case: c }),
+  });
+  return await res.json(); // { action, summary, runId }
 }
 // ---------------------------------------------------------------------------
 
@@ -87,17 +81,37 @@ const summary = {
 writeFileSync(`${dir}results-${version}.json`, JSON.stringify(summary, null, 2));
 console.log(`\n${passCount}/${results.length} passed  (${version})`);
 console.log(`wrote evals/results-${version}.json`);
-console.log(
-  "Push to Convex: npx convex run agency:recordEvalRun " +
-  "'" + JSON.stringify({
-    promptVersion: version,
-    passCount,
-    failCount: results.length - passCount,
-    results: results.map(({ caseId, pass, actual, detail }) => ({
-      caseId, pass, actualAction: actual, detail,
-    })),
-  }).slice(0, 80) + "…'"
-);
+
+// Push results to Convex for the dashboard trend (needs --org).
+const orgId = flag("org");
+const convexUrl = (process.env.CONVEX_URL ??
+  readFileSync(`${dir}../.env.local`, "utf8").match(/^CONVEX_URL=(.+)$/m)?.[1] ?? ""
+).replace(/\/$/, "");
+if (orgId && convexUrl) {
+  const res = await fetch(`${convexUrl}/api/mutation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "agency:recordEvalRun",
+      format: "json",
+      args: {
+        orgId,
+        promptVersion: version,
+        passCount,
+        failCount: results.length - passCount,
+        results: results.map(({ caseId, pass, actual, detail }) => ({
+          caseId, pass, actualAction: actual, detail,
+        })),
+      },
+    }),
+  });
+  const d = await res.json();
+  console.log(d.status === "success"
+    ? `recorded eval run in Convex (${d.value})`
+    : `convex push failed: ${d.errorMessage}`);
+} else {
+  console.log("(pass --org <orgId> to record this eval run in Convex)");
+}
 
 // Baseline gate ------------------------------------------------------------
 const baselinePath = `${dir}baseline.json`;

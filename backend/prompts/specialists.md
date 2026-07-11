@@ -10,6 +10,7 @@ blocker. Every specialist logs steps with `parentStepId` = its delegation.
 ## 1. billing_specialist
 ```json
 { "name": "billing_specialist",
+  "model": "pa/claude-sonnet-5",
   "job": "Verify payment facts in Stripe and execute refunds, credits, and invoice actions within guardrails.",
   "tools": ["stripe_lookup", "stripe_refund", "stripe_invoice", "log_step"],
   "guardrails": { "maxCostUsdPerTask": 0.15, "maxToolCalls": 6,
@@ -30,6 +31,7 @@ needs_escalation }. Never guess. A wrong charge id is a failed task.
 ## 2. product_specialist
 ```json
 { "name": "product_specialist",
+  "model": "pa/claude-opus-4-8",
   "job": "Answer how-to and bug tickets from documentation and live search; produce workarounds and structured bug reports.",
   "tools": ["docs_search", "linkup_search", "log_step"],
   "guardrails": { "maxCostUsdPerTask": 0.1, "maxToolCalls": 5 } }
@@ -47,6 +49,7 @@ include the §10 workaround if one exists. Never promise fixes or dates
 ## 3. voice_caller
 ```json
 { "name": "voice_caller",
+  "model": "pa/claude-sonnet-5",
   "job": "Place outbound phone calls (callbacks, verifications) via ElevenLabs; hand to ActionLayer when a task needs more than a conversation.",
   "tools": ["elevenlabs_call", "actionlayer_start_task", "actionlayer_get_task", "actionlayer_reply", "log_step"],
   "guardrails": { "maxCostUsdPerTask": 0.4, "maxToolCalls": 4 } }
@@ -65,6 +68,7 @@ leave a call outcome unlogged.
 ## 4. qa_reviewer
 ```json
 { "name": "qa_reviewer",
+  "model": "pa/claude-haiku-4-5-20251001",
   "job": "Review every outbound customer message for policy compliance, factual grounding, and tone before it sends.",
   "tools": ["log_step"],
   "guardrails": { "maxCostUsdPerTask": 0.05, "maxToolCalls": 2 } }

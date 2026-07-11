@@ -52,6 +52,9 @@
 <header>
   <h1>LaunchCare</h1>
   <input id="deployUrl" placeholder="Convex URL, e.g. https://xxx.convex.cloud" spellcheck="false">
+  <select id="orgSelect" style="background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:5px 8px;border-radius:6px;">
+    <option value="">— org —</option>
+  </select>
   <nav>
     <button data-tab="runs" class="active">Runs</button>
     <button data-tab="cost">Cost by agent</button>
@@ -103,6 +106,7 @@
         <form class="card" id="roleForm">
           <label>name <input name="name" required placeholder="compliance_drafter"></label>
           <label>job (one sentence) <input name="job" required></label>
+          <label>model (Novita id) <input name="model" required value="pa/claude-sonnet-5"></label>
           <label>tools (comma-separated) <input name="tools" required placeholder="docs_search, log_step"></label>
           <label>max cost USD / task <input name="maxCost" type="number" step="0.01" value="0.1" required></label>
           <label>max tool calls <input name="maxCalls" type="number" value="5" required></label>
@@ -135,9 +139,27 @@ const urlInput = $("#deployUrl");
 urlInput.value = localStorage.getItem("convexUrl") ?? "";
 urlInput.addEventListener("change", () => {
   localStorage.setItem("convexUrl", urlInput.value.trim());
-  refresh();
+  loadOrgs().then(refresh);
 });
 const client = () => convexClient(urlInput.value.trim().replace(/\/$/, ""));
+
+const orgSelect = $("#orgSelect");
+const orgId = () => orgSelect.value;
+orgSelect.addEventListener("change", () => {
+  localStorage.setItem("orgId", orgSelect.value);
+  refresh();
+});
+async function loadOrgs() {
+  if (!urlInput.value.trim()) return;
+  try {
+    const orgs = await client().query("agency:listOrganizations", {});
+    const saved = localStorage.getItem("orgId");
+    orgSelect.innerHTML = orgs.map((o) =>
+      `<option value="${o._id}" ${o._id === saved ? "selected" : ""}>${esc(o.name)}</option>`
+    ).join("") || '<option value="">— no orgs —</option>';
+    if (!orgSelect.value && orgs[0]) orgSelect.value = orgs[0]._id;
+  } catch (e) { $("#status").textContent = `error: ${e.message}`; }
+}
 
 // tabs
 document.querySelectorAll("nav button").forEach((b) =>
@@ -228,7 +250,8 @@ function renderAlerts(alerts) {
 
 function renderRoles(roles) {
   $("#rolesTable tbody").innerHTML = roles.map((r) => `<tr>
-    <td><b>${esc(r.name)}</b></td><td>${esc(r.job)}</td>
+    <td><b>${esc(r.name)}</b><br><span class="dim">${esc(r.model ?? "")}</span></td>
+    <td>${esc(r.job)}</td>
     <td class="dim">${esc(r.tools.join(", "))}</td>
     <td class="dim">$${r.guardrails.maxCostUsdPerTask}/task · ${r.guardrails.maxToolCalls} calls${
       r.guardrails.maxRefundUsd != null ? ` · refund≤$${r.guardrails.maxRefundUsd}` : ""}</td>
@@ -246,7 +269,8 @@ $("#roleForm").addEventListener("submit", async (e) => {
   if (f.get("maxRefund")) guardrails.maxRefundUsd = Number(f.get("maxRefund"));
   try {
     await client().mutation("agency:createRole", {
-      name: f.get("name"), job: f.get("job"),
+      orgId: orgId(), name: f.get("name"), job: f.get("job"),
+      model: f.get("model"),
       tools: f.get("tools").split(",").map((t) => t.trim()).filter(Boolean),
       guardrails, systemPrompt: f.get("systemPrompt"), createdBy: "volunteer",
     });
@@ -271,7 +295,7 @@ $("#settingsTable").addEventListener("click", async (e) => {
   const raw = document.querySelector(`input[data-setting="${key}"]`).value;
   let value; try { value = JSON.parse(raw); } catch { value = raw; }
   try {
-    await client().mutation("agency:setSetting", { key, value });
+    await client().mutation("agency:setSetting", { orgId: orgId(), key, value });
     toast(`${key} saved`); refresh();
   } catch (err) { toast(err.message); }
 });
@@ -279,17 +303,18 @@ $("#settingsTable").addEventListener("click", async (e) => {
 // ---------------------------------------------------------------- refresh
 async function refresh() {
   if (!urlInput.value.trim()) { $("#status").textContent = "set Convex URL ↑"; return; }
+  if (!orgId()) { $("#status").textContent = "pick an org ↑"; return; }
   const c = client();
-  const args = {};
+  const args = { orgId: orgId() };
   if ($("#fStatus").value.trim()) args.status = $("#fStatus").value.trim();
   if ($("#fVersion").value.trim()) args.promptVersion = $("#fVersion").value.trim();
   try {
     const [runs, cost, alerts, roles, settings] = await Promise.all([
       c.query("agency:listRuns", args),
-      c.query("agency:costByAgent", { sinceMs: Date.now() - 24 * 3600e3 }),
-      c.query("agency:openAlerts", {}),
-      c.query("agency:activeRoles", {}),
-      c.query("agency:listSettings", {}),
+      c.query("agency:costByAgent", { orgId: orgId(), sinceMs: Date.now() - 24 * 3600e3 }),
+      c.query("agency:openAlerts", { orgId: orgId() }),
+      c.query("agency:activeRoles", { orgId: orgId() }),
+      c.query("agency:listSettings", { orgId: orgId() }),
     ]);
     renderRuns(runs); renderCost(cost); renderAlerts(alerts);
     renderRoles(roles); renderSettings(settings);
@@ -298,7 +323,7 @@ async function refresh() {
 }
 $("#fStatus").addEventListener("change", refresh);
 $("#fVersion").addEventListener("change", refresh);
-refresh();
+loadOrgs().then(refresh);
 setInterval(refresh, 5000); // ponytail: 5s polling, swap for Convex WS client if it ever matters
 </script>
 </body>

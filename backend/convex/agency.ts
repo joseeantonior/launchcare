@@ -1,5 +1,5 @@
-// LaunchCare — core Convex functions.
-// Wire Hermes's pre/post tool-call hooks (plugin lifecycle) to logStep so the
+// LaunchCare — core Convex functions (multi-tenant: every function is
+// org-scoped). The gateway hooks its tool-call lifecycle to logStep so the
 // trace builds itself. Every mentor drill maps to one query below.
 
 import { mutation, query } from "./_generated/server";
@@ -7,26 +7,70 @@ import { v } from "convex/values";
 
 const now = () => Date.now();
 
+// ---------------------------------------------------------- organizations
+// Signup bootstrap: creates the org AND seeds its default guardrail
+// settings. This replaces the old `seed` mutation.
+//   npx convex run agency:createOrganization '{"name":"demo"}'
+export const createOrganization = mutation({
+  args: {
+    name: v.string(),
+    website: v.optional(v.string()),
+    auth0UserId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await ctx.db.insert("organizations", {
+      ...args,
+      createdAt: now(),
+    });
+    const defaults: Array<[string, any]> = [
+      ["costSpikeUsd", 1.5],
+      ["maxRefundAutoUsd", 25],
+      ["perTicketBudgetUsd", 0.5],
+      ["compBudgetPerCustomerUsd", 30],
+      ["managerModel", "pa/claude-opus-4-8"], // Novita partner model id; edit in dashboard
+      // $/MTok per model — fill from your Novita account-manager pricing.
+      ["modelPricesUsdPerMTok", {}],
+      ["agencyName", "LaunchCare"],
+      ["productName", args.name],
+    ];
+    for (const [key, value] of defaults) {
+      await ctx.db.insert("settings", { orgId, key, value, updatedAt: now() });
+    }
+    return orgId;
+  },
+});
+
+export const listOrganizations = query({
+  args: {},
+  handler: async (ctx) => await ctx.db.query("organizations").collect(),
+});
+
 // -------------------------------------------------------------- settings
-async function getSetting(ctx: any, key: string, fallback: any) {
+async function getSetting(ctx: any, orgId: any, key: string, fallback: any) {
   const row = await ctx.db
     .query("settings")
-    .withIndex("by_key", (q: any) => q.eq("key", key))
+    .withIndex("by_org_key", (q: any) => q.eq("orgId", orgId).eq("key", key))
     .first();
   return row ? row.value : fallback;
 }
 
 export const listSettings = query({
-  args: {},
-  handler: async (ctx) => await ctx.db.query("settings").collect(),
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("settings")
+      .withIndex("by_org_key", (q) => q.eq("orgId", args.orgId))
+      .collect(),
 });
 
 export const setSetting = mutation({
-  args: { key: v.string(), value: v.any() },
+  args: { orgId: v.id("organizations"), key: v.string(), value: v.any() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("settings")
-      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .withIndex("by_org_key", (q) =>
+        q.eq("orgId", args.orgId).eq("key", args.key),
+      )
       .first();
     if (existing) {
       await ctx.db.patch(existing._id, { value: args.value, updatedAt: now() });
@@ -39,6 +83,7 @@ export const setSetting = mutation({
 // --------------------------------------------------------- tickets & customers
 export const upsertCustomer = mutation({
   args: {
+    orgId: v.id("organizations"),
     email: v.string(),
     name: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
@@ -49,7 +94,9 @@ export const upsertCustomer = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("customers")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_org_email", (q) =>
+        q.eq("orgId", args.orgId).eq("email", args.email),
+      )
       .first();
     if (existing) {
       await ctx.db.patch(existing._id, args);
@@ -61,6 +108,7 @@ export const upsertCustomer = mutation({
 
 export const createTicket = mutation({
   args: {
+    orgId: v.id("organizations"),
     source: v.union(
       v.literal("email"), v.literal("telegram"), v.literal("demo"),
       v.literal("eval"), v.literal("api"),
@@ -77,9 +125,12 @@ export const createTicket = mutation({
   handler: async (ctx, args) => {
     const customer = await ctx.db
       .query("customers")
-      .withIndex("by_email", (q) => q.eq("email", args.customerEmail))
+      .withIndex("by_org_email", (q) =>
+        q.eq("orgId", args.orgId).eq("email", args.customerEmail),
+      )
       .first();
     return await ctx.db.insert("tickets", {
+      orgId: args.orgId,
       source: args.source,
       channelRef: args.channelRef,
       customerId: customer?._id,
@@ -95,15 +146,19 @@ export const createTicket = mutation({
 
 // "This user's past" memory layer: hand this to the manager at kickoff.
 export const customerContext = query({
-  args: { email: v.string() },
+  args: { orgId: v.id("organizations"), email: v.string() },
   handler: async (ctx, args) => {
     const customer = await ctx.db
       .query("customers")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_org_email", (q) =>
+        q.eq("orgId", args.orgId).eq("email", args.email),
+      )
       .first();
     const pastTickets = await ctx.db
       .query("tickets")
-      .withIndex("by_customerEmail", (q) => q.eq("customerEmail", args.email))
+      .withIndex("by_org_email", (q) =>
+        q.eq("orgId", args.orgId).eq("customerEmail", args.email),
+      )
       .order("desc")
       .take(10);
     return { customer, pastTickets };
@@ -113,6 +168,7 @@ export const customerContext = query({
 // ------------------------------------------------------------------- runs
 export const startRun = mutation({
   args: {
+    orgId: v.id("organizations"),
     ticketId: v.optional(v.id("tickets")),
     kind: v.union(v.literal("ticket"), v.literal("eval"), v.literal("demo")),
     promptVersion: v.string(),
@@ -160,34 +216,34 @@ export const logStep = mutation({
     )),
   },
   handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    if (!run) throw new Error("unknown runId");
     const stepId = await ctx.db.insert("steps", {
       ...args,
+      orgId: run.orgId, // steps inherit the run's org
       status: args.status ?? "ok",
       startedAt: now(),
     });
     // Roll up totals onto the run.
-    const run = await ctx.db.get(args.runId);
-    if (run) {
-      const totalCostUsd =
-        run.totalCostUsd + (args.costUsd ?? 0);
-      await ctx.db.patch(args.runId, {
-        totalTokens:
-          run.totalTokens + (args.tokensIn ?? 0) + (args.tokensOut ?? 0),
-        totalCostUsd,
-        stepCount: run.stepCount + 1,
+    const totalCostUsd = run.totalCostUsd + (args.costUsd ?? 0);
+    await ctx.db.patch(args.runId, {
+      totalTokens:
+        run.totalTokens + (args.tokensIn ?? 0) + (args.tokensOut ?? 0),
+      totalCostUsd,
+      stepCount: run.stepCount + 1,
+    });
+    // Cost-spike alert (Observability L5: "an alert that actually fired").
+    const spikeLimit = await getSetting(ctx, run.orgId, "costSpikeUsd", 1.5);
+    if (totalCostUsd > spikeLimit && run.totalCostUsd <= spikeLimit) {
+      await ctx.db.insert("alerts", {
+        orgId: run.orgId,
+        type: "cost_spike",
+        runId: args.runId,
+        message: `Run cost $${totalCostUsd.toFixed(2)} exceeded $${spikeLimit}`,
+        thresholdInfo: `costSpikeUsd=${spikeLimit}`,
+        firedAt: now(),
+        acknowledged: false,
       });
-      // Cost-spike alert (Observability L5: "an alert that actually fired").
-      const spikeLimit = await getSetting(ctx, "costSpikeUsd", 1.5);
-      if (totalCostUsd > spikeLimit && run.totalCostUsd <= spikeLimit) {
-        await ctx.db.insert("alerts", {
-          type: "cost_spike",
-          runId: args.runId,
-          message: `Run cost $${totalCostUsd.toFixed(2)} exceeded $${spikeLimit}`,
-          thresholdInfo: `costSpikeUsd=${spikeLimit}`,
-          firedAt: now(),
-          acknowledged: false,
-        });
-      }
     }
     return stepId;
   },
@@ -221,8 +277,9 @@ export const finishRun = mutation({
         resolvedAt: args.status === "succeeded" ? now() : undefined,
       });
     }
-    if (args.status === "failed") {
+    if (args.status === "failed" && run) {
       await ctx.db.insert("alerts", {
+        orgId: run.orgId,
         type: "run_failed",
         runId: args.runId,
         message: args.failureReason ?? "Run failed",
@@ -249,11 +306,13 @@ export const getRunTree = query({
 
 // Mentor: "which agent spent the most this morning?"
 export const costByAgent = query({
-  args: { sinceMs: v.number() },
+  args: { orgId: v.id("organizations"), sinceMs: v.number() },
   handler: async (ctx, args) => {
     const steps = await ctx.db
       .query("steps")
-      .withIndex("by_startedAt", (q) => q.gte("startedAt", args.sinceMs))
+      .withIndex("by_org_startedAt", (q) =>
+        q.eq("orgId", args.orgId).gte("startedAt", args.sinceMs),
+      )
       .collect();
     const totals: Record<string, { costUsd: number; tokens: number; steps: number }> = {};
     for (const s of steps) {
@@ -271,12 +330,17 @@ export const costByAgent = query({
 // List/search runs; call twice with two runIds + getRunTree for the diff view.
 export const listRuns = query({
   args: {
+    orgId: v.id("organizations"),
     status: v.optional(v.string()),
     promptVersion: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let runs = await ctx.db.query("runs").order("desc").take(args.limit ?? 50);
+    let runs = await ctx.db
+      .query("runs")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .order("desc")
+      .take(args.limit ?? 50);
     if (args.status) runs = runs.filter((r) => r.status === args.status);
     if (args.promptVersion)
       runs = runs.filter((r) => r.promptVersion === args.promptVersion);
@@ -284,20 +348,44 @@ export const listRuns = query({
   },
 });
 
-export const openAlerts = query({
-  args: {},
-  handler: async (ctx) => {
-    const alerts = await ctx.db.query("alerts").order("desc").take(25);
-    return alerts;
+// Explicit alert (e.g. escalation raised by the gateway).
+export const raiseAlert = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    type: v.union(
+      v.literal("run_failed"), v.literal("cost_spike"),
+      v.literal("latency_spike"), v.literal("escalation"),
+    ),
+    runId: v.optional(v.id("runs")),
+    message: v.string(),
   },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("alerts", {
+      ...args,
+      firedAt: now(),
+      acknowledged: false,
+    });
+  },
+});
+
+export const openAlerts = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("alerts")
+      .withIndex("by_org_firedAt", (q) => q.eq("orgId", args.orgId))
+      .order("desc")
+      .take(25),
 });
 
 // -------------------------------------------------------------- agent roles
 export const createRole = mutation({
   args: {
+    orgId: v.id("organizations"),
     name: v.string(),
     job: v.string(),
     tools: v.array(v.string()),
+    model: v.string(),
     guardrails: v.object({
       maxCostUsdPerTask: v.number(),
       maxToolCalls: v.number(),
@@ -318,19 +406,45 @@ export const createRole = mutation({
   },
 });
 
-export const activeRoles = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db
-      .query("agentRoles")
-      .withIndex("by_active", (q) => q.eq("active", true))
-      .collect();
+// Patch a role after creation — e.g. set the real Novita model id, retire a
+// role, or tighten guardrails.
+export const updateRole = mutation({
+  args: {
+    roleId: v.id("agentRoles"),
+    model: v.optional(v.string()),
+    active: v.optional(v.boolean()),
+    systemPrompt: v.optional(v.string()),
+    guardrails: v.optional(v.object({
+      maxCostUsdPerTask: v.number(),
+      maxToolCalls: v.number(),
+      maxRefundUsd: v.optional(v.number()),
+      requiresReviewFor: v.optional(v.array(v.string())),
+    })),
   },
+  handler: async (ctx, args) => {
+    const { roleId, ...patch } = args;
+    const defined = Object.fromEntries(
+      Object.entries(patch).filter(([, val]) => val !== undefined),
+    );
+    await ctx.db.patch(roleId, defined);
+  },
+});
+
+export const activeRoles = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("agentRoles")
+      .withIndex("by_org_active", (q) =>
+        q.eq("orgId", args.orgId).eq("active", true),
+      )
+      .collect(),
 });
 
 // ------------------------------------------------------------------- evals
 export const recordEvalRun = mutation({
   args: {
+    orgId: v.id("organizations"),
     promptVersion: v.string(),
     passCount: v.number(),
     failCount: v.number(),
@@ -344,6 +458,7 @@ export const recordEvalRun = mutation({
   },
   handler: async (ctx, args) => {
     const evalRunId = await ctx.db.insert("evalRuns", {
+      orgId: args.orgId,
       promptVersion: args.promptVersion,
       startedAt: now(),
       finishedAt: now(),
@@ -355,28 +470,5 @@ export const recordEvalRun = mutation({
       await ctx.db.insert("evalResults", { evalRunId, ...r });
     }
     return evalRunId;
-  },
-});
-
-// Seed the starting org + default guardrail settings. Run once:
-//   npx convex run agency:seed
-export const seed = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const defaults: Array<[string, any]> = [
-      ["costSpikeUsd", 1.5],
-      ["maxRefundAutoUsd", 25],
-      ["perTicketBudgetUsd", 0.5],
-      ["compBudgetPerCustomerUsd", 30],
-    ];
-    for (const [key, value] of defaults) {
-      const existing = await ctx.db
-        .query("settings")
-        .withIndex("by_key", (q) => q.eq("key", key))
-        .first();
-      if (!existing)
-        await ctx.db.insert("settings", { key, value, updatedAt: now() });
-    }
-    return "seeded settings — create roles from prompts/specialists.md via createRole";
   },
 });
