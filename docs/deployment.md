@@ -38,7 +38,8 @@ Workers & Pages → Create → Pages → **Upload assets** → drag the `website
 folder in. Or connect the git repo and set **build command: none, output
 directory: `website`**.
 
-Then open the deployed URL and paste your Convex **prod** URL
+The deployed site serves the landing page at `/` and the ops dashboard at
+`/dashboard.html`. Open the dashboard and paste your Convex **prod** URL
 (`https://<name>.convex.cloud`) into the top bar once — done. Convex's HTTP
 API sends CORS headers, so no proxy or config is needed.
 
