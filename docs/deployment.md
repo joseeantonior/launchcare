@@ -159,18 +159,19 @@ Each onboarded company gets a box that runs their agent crew.
    - `PROMPT_VERSION` = the git tag you deployed, e.g. `v0.1`
 5. Make it a service that survives reboots:
    ```bash
-   The unit below assumes the repo at `/home/<user>/launchcare` running as
-   `<user>` — replace both (cloned as root? use `/root/launchcare` and drop
-   the `User=` line). The paths must match where you actually cloned:
+   Set your Linux username on the first line, then the whole block is
+   paste-safe (cloned as root? `LCUSER=root` and change the two paths to
+   `/root/launchcare/...`). The paths must match where you actually cloned:
    ```bash
-   tee /etc/systemd/system/launchcare.service >/dev/null <<'EOF'
+   LCUSER=yourname    # ← EDIT: your Linux username
+   tee /etc/systemd/system/launchcare.service >/dev/null <<EOF
    [Unit]
    Description=LaunchCare gateway
    After=network.target
    [Service]
-   User=<user>
-   WorkingDirectory=/home/<user>/launchcare/backend
-   EnvironmentFile=/home/<user>/launchcare/backend/.env
+   User=$LCUSER
+   WorkingDirectory=/home/$LCUSER/launchcare/backend
+   EnvironmentFile=/home/$LCUSER/launchcare/backend/.env
    ExecStart=/usr/bin/node gateway/index.mjs
    Restart=always
    [Install]
