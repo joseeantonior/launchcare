@@ -1,7 +1,10 @@
 # Specialist roles — seed org chart
 
-Register each via `createRole` (createdBy: "founder") during H1. Guardrail
-JSON matches the `agentRoles` schema exactly. Every specialist obeys the
+> **Canonical data lives in `convex/defaultCrew.js`** — onboarding seeds it
+> automatically; `scripts/register-roles.mjs` registers it for CLI-created
+> orgs. This file is the human-readable companion; keep them in sync.
+
+Guardrail JSON matches the `agentRoles` schema exactly. Every specialist obeys the
 stuck protocol: max 2 attempts, then escalate to manager with the exact
 blocker. Every specialist logs steps with `parentStepId` = its delegation.
 

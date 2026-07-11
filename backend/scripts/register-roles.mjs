@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Register the seed roles from prompts/specialists.md for an org.
+// Register the default crew (convex/defaultCrew.js) for an org — for orgs
+// created via CLI; app-onboarded orgs get the crew automatically.
 //   node scripts/register-roles.mjs --org <orgId> [--url <convexUrl>]
-// Idempotent: skips roles the org already has. specialists.md stays the
-// single source of truth — this parses its JSON blocks + Prompt paragraphs.
+// Idempotent: skips roles the org already has.
 
 import { readFileSync } from "node:fs";
+import { defaultCrew } from "../convex/defaultCrew.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -35,24 +36,10 @@ const call = async (endpoint, path, callArgs) => {
   return d.value;
 };
 
-// Parse specialists.md: each "## N. role" section has a ```json block
-// (name, model, job, tools, guardrails) and a "Prompt: ..." paragraph.
-const md = readFileSync(`${dir}prompts/specialists.md`, "utf8");
-const roles = [];
-for (const section of md.split(/^## \d+\. /m).slice(1)) {
-  const json = section.match(/```json\s*([\s\S]*?)```/)?.[1];
-  const prompt = section.match(/^Prompt: ([\s\S]*?)(?=\n---|\n## |$)/m)?.[1];
-  if (!json || !prompt) {
-    console.error(`skipping malformed section: ${section.slice(0, 40)}…`);
-    continue;
-  }
-  roles.push({ ...JSON.parse(json), systemPrompt: prompt.trim().replace(/\n/g, " ") });
-}
-
 const existing = new Set(
   (await call("query", "agency:activeRoles", { orgId })).map((r) => r.name),
 );
-for (const role of roles) {
+for (const role of defaultCrew) {
   if (existing.has(role.name)) {
     console.log(`skip  ${role.name} (already registered)`);
     continue;
@@ -60,4 +47,4 @@ for (const role of roles) {
   await call("mutation", "agency:createRole", { orgId, ...role, createdBy: "founder" });
   console.log(`ok    ${role.name}  model=${role.model}`);
 }
-console.log(`${roles.length} roles processed for org ${orgId}`);
+console.log(`${defaultCrew.length} roles processed for org ${orgId}`);

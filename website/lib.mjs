@@ -29,12 +29,16 @@ export function buildTree(steps) {
 export const fmtUsd = (n) => `$${(n ?? 0).toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}`;
 export const fmtTime = (ms) => (ms ? new Date(ms).toLocaleTimeString() : "—");
 
-// Convex HTTP API client (no SDK, no build step).
-export function convexClient(deploymentUrl) {
+// Convex HTTP API client (no SDK, no build step). Pass an Auth0 id_token as
+// `token` to call as a signed-in identity.
+export function convexClient(deploymentUrl, token) {
   const call = async (endpoint, path, args) => {
     const res = await fetch(`${deploymentUrl}/api/${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ path, args: args ?? {}, format: "json" }),
     });
     const data = await res.json();

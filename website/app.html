@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaunchCare — your agency</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#2a313c; --fg:#dde3ea; --dim:#8b949e;
+          --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg);
+         font:15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  a { color:var(--acc); text-decoration:none; }
+  header { display:flex; justify-content:space-between; align-items:center;
+           padding:14px 24px; border-bottom:1px solid var(--line); }
+  .logo { font-weight:700; } .logo span { color:var(--acc); }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px; }
+  .view { display:none; } .view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          padding:22px; max-width:520px; }
+  .card.wide { max-width:none; }
+  h1 { font-size:22px; margin-bottom:8px; } h2 { font-size:15px; margin-bottom:12px; }
+  p.dim, span.dim { color:var(--dim); }
+  label { display:block; color:var(--dim); font-size:13px; margin:12px 0 4px; }
+  input { width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg);
+          padding:9px 10px; border-radius:7px; font-size:15px; }
+  .btn { display:inline-block; background:var(--acc); color:#0b1520; border:none;
+         padding:10px 22px; border-radius:8px; font-weight:600; font-size:15px;
+         cursor:pointer; margin-top:16px; }
+  .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
+  table { border-collapse:collapse; width:100%; margin-top:8px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+  th { color:var(--dim); font-weight:normal; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+          gap:16px; margin-top:16px; }
+  ul.next { margin:8px 0 0 18px; } ul.next li { margin:6px 0; color:var(--dim); }
+  ul.next b { color:var(--fg); }
+  iframe { width:100%; height:640px; border:1px solid var(--line); border-radius:10px;
+           margin-top:16px; background:var(--bg); }
+  #toast { position:fixed; bottom:16px; right:16px; background:var(--panel);
+           border:1px solid var(--acc); border-radius:8px; padding:10px 14px; display:none; }
+  code { font-family:ui-monospace, Menlo, monospace; font-size:13px; color:var(--fg); }
+  .pill { padding:1px 8px; border-radius:10px; border:1px solid var(--line);
+          font-size:12px; color:var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Launch<span>Care</span> <span class="pill" id="modePill"></span></div>
+  <div>
+    <span id="who" class="dim"></span>
+    <button class="btn ghost" id="logoutBtn" style="display:none; margin:0 0 0 12px; padding:6px 14px;">Sign out</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- sign in -->
+  <div class="view" id="signin">
+    <div class="card">
+      <h1>Welcome</h1>
+      <p class="dim">Sign in to set up your support agency or manage an existing one.</p>
+      <button class="btn" id="loginBtn">Sign in / Sign up</button>
+    </div>
+  </div>
+
+  <!-- convex url missing (dev only) -->
+  <div class="view" id="setup">
+    <div class="card">
+      <h1>Connect</h1>
+      <p class="dim">No <code>config.js</code> found. Enter your Convex deployment URL (dev mode).</p>
+      <label>Convex URL <input id="convexUrlInput" placeholder="http://127.0.0.1:3210"></label>
+      <button class="btn" id="setupBtn">Continue</button>
+    </div>
+  </div>
+
+  <!-- onboarding -->
+  <div class="view" id="onboard">
+    <div class="card">
+      <h1>Set up your agency</h1>
+      <p class="dim">Tell us about your product. We'll assemble your agent crew — a manager
+        plus specialists on the right model for each job — and prepare your dedicated server.</p>
+      <form id="onboardForm">
+        <label>Company / product name <input name="name" required placeholder="Acme Notes"></label>
+        <label>Website <input name="website" type="url" required placeholder="https://acmenotes.com"></label>
+        <button class="btn" type="submit">Create my agency</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- home -->
+  <div class="view" id="home">
+    <h1 id="orgName"></h1>
+    <p class="dim" id="orgSite"></p>
+
+    <div class="grid">
+      <div class="card wide">
+        <h2>Your crew</h2>
+        <table><thead><tr><th>agent</th><th>job</th><th>model</th></tr></thead>
+          <tbody id="crewRows"></tbody></table>
+      </div>
+
+      <div class="card wide">
+        <h2>Next steps</h2>
+        <ul class="next">
+          <li><b>Knowledge pack</b> — we'll scan <span id="siteRef">your website</span> for docs
+              and use-cases to brief your crew. <span class="pill">coming soon</span></li>
+          <li><b>Review your policy</b> — refund limits, escalation rules. Your crew treats it
+              as law; you approve it before go-live.</li>
+          <li><b>Connect Stripe</b> — a restricted key (charges:read, refunds:write) goes on
+              <i>your</i> server, never stored here.</li>
+          <li><b>Connect channels</b> — support inbox forwarding, Telegram, phone.
+              <span class="pill">coming soon</span></li>
+        </ul>
+        <label>Support email (where escalations reach you)
+          <input id="supportEmail" placeholder="founders@acmenotes.com"></label>
+        <button class="btn ghost" id="saveEmail" style="margin-top:10px;">Save</button>
+      </div>
+    </div>
+
+    <h2 style="margin-top:28px;">Operations</h2>
+    <p class="dim">Live runs, trace trees, costs, and alerts for your agency.</p>
+    <iframe id="opsFrame" title="ops dashboard"></iframe>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+<script src="config.js"></script><!-- optional; see config.example.js -->
+<script type="module">
+import { convexClient, maskEmail } from "./lib.mjs";
+
+const cfg = window.LAUNCHCARE_CONFIG ?? {};
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const show = (id) => {
+  document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
+  $("#" + id).classList.add("active");
+};
+const toast = (msg) => {
+  const t = $("#toast"); t.textContent = msg; t.style.display = "block";
+  setTimeout(() => (t.style.display = "none"), 3500);
+};
+
+let convexUrl = cfg.convexUrl ?? localStorage.getItem("convexUrl") ?? "";
+let token = null;
+let auth0Client = null;
+const authConfigured = Boolean(cfg.auth0Domain && cfg.auth0ClientId);
+$("#modePill").textContent = authConfigured ? "" : "dev mode";
+
+const client = () => convexClient(convexUrl.replace(/\/$/, ""), token);
+
+async function initAuth() {
+  if (!authConfigured) return "dev";
+  auth0Client = await window.auth0.createAuth0Client({
+    domain: cfg.auth0Domain,
+    clientId: cfg.auth0ClientId,
+    authorizationParams: { redirect_uri: location.origin + location.pathname },
+  });
+  if (location.search.includes("code=") && location.search.includes("state=")) {
+    await auth0Client.handleRedirectCallback();
+    history.replaceState({}, "", location.pathname);
+  }
+  if (!(await auth0Client.isAuthenticated())) return "signedout";
+  const claims = await auth0Client.getIdTokenClaims();
+  token = claims.__raw; // Convex validates this id_token (auth.config.ts)
+  $("#who").textContent = maskEmail(claims.email ?? claims.name ?? "");
+  $("#logoutBtn").style.display = "inline-block";
+  return "signedin";
+}
+
+$("#loginBtn")?.addEventListener("click", () =>
+  auth0Client.loginWithRedirect());
+$("#logoutBtn")?.addEventListener("click", () =>
+  auth0Client.logout({ logoutParams: { returnTo: location.origin + location.pathname } }));
+
+$("#setupBtn").addEventListener("click", () => {
+  convexUrl = $("#convexUrlInput").value.trim();
+  if (!convexUrl) return;
+  localStorage.setItem("convexUrl", convexUrl);
+  route();
+});
+
+$("#onboardForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    const orgId = await client().mutation("agency:onboardOrganization", {
+      name: f.get("name"), website: f.get("website"),
+    });
+    localStorage.setItem("myOrgId", orgId);
+    toast("Agency created — your crew is ready");
+    route();
+  } catch (err) { toast(err.message); }
+});
+
+$("#saveEmail").addEventListener("click", async () => {
+  const orgId = localStorage.getItem("myOrgId");
+  try {
+    await client().mutation("agency:setSetting", {
+      orgId, key: "supportEmail", value: $("#supportEmail").value.trim(),
+    });
+    toast("saved");
+  } catch (err) { toast(err.message); }
+});
+
+async function findMyOrg() {
+  if (token) {
+    const org = await client().query("agency:myOrganization", {});
+    if (org) { localStorage.setItem("myOrgId", org._id); return org; }
+    return null;
+  }
+  // dev mode: fall back to the locally remembered org
+  const orgId = localStorage.getItem("myOrgId");
+  if (!orgId) return null;
+  const orgs = await client().query("agency:listOrganizations", {});
+  return orgs.find((o) => o._id === orgId) ?? null;
+}
+
+async function renderHome(org) {
+  $("#orgName").textContent = org.name;
+  $("#orgSite").textContent = org.website ?? "";
+  $("#siteRef").textContent = org.website ?? "your website";
+  const [roles, settings] = await Promise.all([
+    client().query("agency:activeRoles", { orgId: org._id }),
+    client().query("agency:listSettings", { orgId: org._id }),
+  ]);
+  $("#crewRows").innerHTML = roles.map((r) => `<tr>
+    <td><b>${esc(r.name)}</b></td><td class="dim">${esc(r.job)}</td>
+    <td><code>${esc(r.model)}</code></td></tr>`).join("");
+  const email = settings.find((s) => s.key === "supportEmail")?.value;
+  if (email) $("#supportEmail").value = email;
+  $("#opsFrame").src =
+    `dashboard.html?org=${org._id}&url=${encodeURIComponent(convexUrl)}&embed=1`;
+  show("home");
+}
+
+async function route() {
+  const auth = await initAuth().catch((e) => { toast(e.message); return "dev"; });
+  if (auth === "signedout") return show("signin");
+  if (!convexUrl) return show("setup");
+  try {
+    const org = await findMyOrg();
+    org ? await renderHome(org) : show("onboard");
+  } catch (e) { toast(e.message); show("onboard"); }
+}
+route();
+</script>
+</body>
+</html>
