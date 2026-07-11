@@ -97,8 +97,24 @@
     <div class="grid">
       <div class="card wide">
         <h2>Your crew</h2>
+        <p class="dim">Pick the model behind each agent — heavier models for harder jobs.</p>
         <table><thead><tr><th>agent</th><th>job</th><th>model</th></tr></thead>
           <tbody id="crewRows"></tbody></table>
+
+        <details style="margin-top:16px;">
+          <summary style="cursor:pointer; color:var(--acc);">+ Add an agent</summary>
+          <form id="addRoleForm">
+            <label>name (snake_case) <input name="name" required placeholder="sr_tech_support"></label>
+            <label>job (one sentence) <input name="job" required placeholder="Handle escalated technical issues end-to-end."></label>
+            <label>model <select name="model" id="newRoleModel" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:9px 10px; border-radius:7px;"></select></label>
+            <label>tools</label>
+            <div id="toolChecks" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:4px; font-size:13px; color:var(--dim);"></div>
+            <label>instructions (system prompt) <textarea name="systemPrompt" required rows="4"
+              style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:9px 10px; border-radius:7px; font:inherit;"
+              placeholder="You are the senior tech support specialist. ..."></textarea></label>
+            <button class="btn" type="submit">Add agent</button>
+          </form>
+        </details>
       </div>
 
       <div class="card wide">
@@ -220,17 +236,76 @@ async function findMyOrg() {
   return orgs.find((o) => o._id === orgId) ?? null;
 }
 
+// Curated Novita partner models, by capability tier.
+const MODELS = [
+  ["pa/claude-fable-5", "Claude Fable 5 — most capable"],
+  ["pa/claude-opus-4-8", "Claude Opus 4.8 — complex work"],
+  ["pa/claude-sonnet-5", "Claude Sonnet 5 — everyday tasks"],
+  ["pa/claude-haiku-4-5-20251001", "Claude Haiku 4.5 — fast & cheap"],
+  ["pa/gpt-5.4", "GPT-5.4"],
+  ["pa/gemini-2.5-pro", "Gemini 2.5 Pro"],
+  ["pa/grok-4", "Grok 4"],
+];
+const AGENT_TOOLS = ["docs_search", "linkup_search", "stripe_lookup",
+  "stripe_refund", "stripe_invoice", "elevenlabs_call",
+  "actionlayer_start_task", "log_step"];
+
+const modelOptions = (selected) => {
+  const known = MODELS.some(([id]) => id === selected);
+  return (known || !selected ? MODELS : [[selected, selected], ...MODELS])
+    .map(([id, label]) =>
+      `<option value="${esc(id)}" ${id === selected ? "selected" : ""}>${esc(label)}</option>`)
+    .join("");
+};
+
+async function loadCrew(orgId) {
+  const roles = await client().query("agency:activeRoles", { orgId });
+  $("#crewRows").innerHTML = roles.map((r) => `<tr>
+    <td><b>${esc(r.name)}</b></td><td class="dim">${esc(r.job)}</td>
+    <td><select data-role-model="${r._id}" style="background:var(--bg); border:1px solid var(--line);
+        color:var(--fg); padding:6px 8px; border-radius:7px; max-width:260px;">
+      ${modelOptions(r.model)}</select></td></tr>`).join("");
+}
+
+$("#crewRows").addEventListener("change", async (e) => {
+  const roleId = e.target.dataset?.roleModel;
+  if (!roleId) return;
+  try {
+    await client().mutation("agency:updateRole", { roleId, model: e.target.value });
+    toast("model updated");
+  } catch (err) { toast(err.message); }
+});
+
+$("#addRoleForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const tools = [...document.querySelectorAll("#toolChecks input:checked")].map((i) => i.value);
+  try {
+    await client().mutation("agency:createRole", {
+      orgId: localStorage.getItem("myOrgId"),
+      name: f.get("name"), job: f.get("job"), model: f.get("model"),
+      tools, systemPrompt: f.get("systemPrompt"),
+      // ponytail: fixed sane guardrails for user-created agents; expose knobs when asked
+      guardrails: { maxCostUsdPerTask: 0.15, maxToolCalls: 5 },
+      createdBy: "founder",
+    });
+    e.target.reset(); toast("agent added");
+    await loadCrew(localStorage.getItem("myOrgId"));
+  } catch (err) { toast(err.message); }
+});
+
 async function renderHome(org) {
   $("#orgName").textContent = org.name;
   $("#orgSite").textContent = org.website ?? "";
   $("#siteRef").textContent = org.website ?? "your website";
-  const [roles, settings] = await Promise.all([
-    client().query("agency:activeRoles", { orgId: org._id }),
+  $("#newRoleModel").innerHTML = modelOptions("pa/claude-sonnet-5");
+  $("#toolChecks").innerHTML = AGENT_TOOLS.map((t) => `<label style="margin:0;">
+    <input type="checkbox" value="${t}" style="width:auto;"
+      ${["docs_search", "log_step"].includes(t) ? "checked" : ""}> ${t}</label>`).join("");
+  const [, settings] = await Promise.all([
+    loadCrew(org._id),
     client().query("agency:listSettings", { orgId: org._id }),
   ]);
-  $("#crewRows").innerHTML = roles.map((r) => `<tr>
-    <td><b>${esc(r.name)}</b></td><td class="dim">${esc(r.job)}</td>
-    <td><code>${esc(r.model)}</code></td></tr>`).join("");
   const email = settings.find((s) => s.key === "supportEmail")?.value;
   if (email) $("#supportEmail").value = email;
   $("#opsFrame").src =
