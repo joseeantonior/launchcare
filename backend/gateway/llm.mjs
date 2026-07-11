@@ -41,8 +41,16 @@ export async function chat({ model, system, messages, tools, maxTokens = 4096 })
   return { message, tokensIn, tokensOut, costUsd: costUsd(model, tokensIn, tokensOut) };
 }
 
-// Best-effort JSON from a model's final text.
-export function extractJson(text) {
+// Best-effort JSON from a model's output. Tolerates every shape the
+// OpenAI-compat layer produces: plain string, array of content blocks
+// (Anthropic-style parts), already-parsed objects (some providers return
+// tool arguments pre-parsed), or null.
+export function extractJson(input) {
+  if (input == null) return null;
+  if (typeof input === "object" && !Array.isArray(input)) return input;
+  const text = Array.isArray(input)
+    ? input.map((p) => (typeof p === "string" ? p : p?.text ?? "")).join("")
+    : String(input);
   if (!text) return null;
   try { return JSON.parse(text); } catch {}
   const m = text.match(/\{[\s\S]*\}/);
