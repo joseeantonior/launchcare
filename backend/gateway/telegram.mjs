@@ -39,7 +39,9 @@ export function startTelegram({ token, onTicket }) {
 
   let offset = 0;
   let fails = 0;
+  let stopped = false;
   async function poll() {
+    if (stopped) return;
     try {
       const updates = await api("getUpdates", { offset, timeout: 25 });
       fails = 0;
@@ -61,5 +63,7 @@ export function startTelegram({ token, onTicket }) {
   }
   poll();
   console.log("telegram poller started");
-  return { api }; // reusable for outbound (founder escalations) later
+  // api reusable for outbound (founder escalations) later; stop() lets the
+  // gateway swap tokens configured from the app without a restart.
+  return { api, stop: () => { stopped = true; } };
 }

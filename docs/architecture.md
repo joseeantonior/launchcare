@@ -43,7 +43,7 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
 - **Tenant bootstrap**: app onboarding (full), or CLI
   (`agency:createOrganization` + `scripts/register-roles.mjs`; crew data in
   `convex/defaultCrew.js`).
-- **Website scrape → knowledge pack**: onboarding schedules a Convex action
+- **Website scrape → knowledge pack**: Linkup-powered when LINKUP_KEY is set (domain-restricted search, clean content); naive crawler fallback. Onboarding schedules a Convex action
   (`convex/scrape.ts`) that crawls the tenant's site (homepage + ~5
   docs-ish same-origin pages) into the org's `knowledge` table; the crew's
   `docs_search` cites it. "Rescan" in the app rebuilds it.

@@ -19,7 +19,7 @@ channels / eval runner ──► gateway ──► Novita LLM API (manager + spe
 | `gateway/runner-hermes.mjs` | `RUNNER=hermes` — delegates the run to a Hermes profile; the assumed CLI contract lives ONLY here |
 | `gateway/telegram.mjs` | Telegram ingress via long-polling — see [channels.md](channels.md) |
 | `gateway/llm.mjs` | Novita client (OpenAI-compatible `chat/completions`), per-model cost calc, JSON extraction |
-| `gateway/tools.mjs` | Specialist tools: Stripe (live or eval-fixture), docs_search over the knowledge pack, stubs for the rest |
+| `gateway/tools.mjs` | Specialist tools: Stripe (live or eval-fixture), docs_search over the knowledge pack, linkup_search (live web, cited sources), stubs for the rest |
 | `gateway/convex.mjs` | Convex HTTP client + PII masking + 40-word summaries |
 
 ## Running
@@ -79,6 +79,16 @@ Senior roles (e.g. a spawned `sr_tech_support`) can use `pa/claude-fable-5`.
 org's `modelPricesUsdPerMTok` setting — `{"pa/claude-sonnet-5": {"in": X, "out": Y}, ...}`
 ($/MTok). Fill it from your Novita account-manager pricing; unknown models
 count as $0 but still track tokens.
+
+## Multi-org (judging/demo) mode
+
+`MULTI_ORG=1` makes one box serve **every org** on the deployment: per-org
+Telegram pollers (from each org's app-configured token) and per-org
+demo-ticket queues (the app's "Try your agency" card writes `source:"demo"`
+tickets; the gateway polls `pendingDemoTickets` every 10s and runs them).
+This is what lets a judge sign up on the website and have a live agency with
+zero provisioning. One box per tenant (`ORG_ID=...`) remains the production
+shape.
 
 ## Eval mode
 

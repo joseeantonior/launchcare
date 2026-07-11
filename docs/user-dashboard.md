@@ -14,9 +14,13 @@ every org and stays an admin tool.
    `managerModel`, prices placeholder), and registers the **default crew**
    from `backend/convex/defaultCrew.js` with per-role model tiers.
    Idempotent: signing in again lands on the existing org.
-3. **Home** — your crew, next-steps checklist, support-email setting, and
-   the live ops view for *your org only* (the ops dashboard embedded with
-   `?org=<id>&embed=1`, selector hidden).
+3. **Home (the main menu)** — your crew, the setup checklist, and the live
+   ops view for *your org only* (the ops dashboard embedded with
+   `?org=<id>&embed=1`, selector hidden). Self-serve from here:
+   - **Connect Telegram**: paste a BotFather token; it's validated live
+     (`agency:connectTelegram`) and the gateway starts answering within ~30s.
+   - **Try your agency now**: send a test ticket without any channel setup —
+     status updates inline while the crew works it, full trace in Operations.
 
    The **knowledge pack** builds itself: onboarding schedules a scrape of
    the company's website (Convex action, background); the home screen shows

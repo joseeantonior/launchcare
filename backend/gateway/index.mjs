@@ -1,18 +1,23 @@
 #!/usr/bin/env node
-// LaunchCare gateway — the per-box service. Receives tickets (channel
-// webhooks or the eval runner), runs the crew, records everything in Convex.
+// LaunchCare gateway — the box service. Receives tickets (Telegram, HTTP,
+// or the app's demo queue), runs the crew, records everything in Convex.
 //
 //   ORG_ID=... CONVEX_URL=... NOVITA_API_KEY=... node gateway/index.mjs
+//   MULTI_ORG=1 → serve EVERY org on the deployment (demo/judging mode):
+//   per-org Telegram pollers from each org's app-configured token, per-org
+//   demo-ticket queue. The provisioner later replaces this with one box per
+//   tenant; the code paths are identical.
 //
 // Routes:
 //   GET  /health            -> { ok, org }
-//   POST /tickets           -> { customerEmail, subject, body, source? }  real ticket
-//   POST /resolve           -> { case }  eval case (fixture-backed tools, no live spend)
+//   POST /tickets           -> { customerEmail, subject, body, source?, orgId? }
+//   POST /resolve           -> { case, orgId? }  eval case (fixture-backed tools)
 
 import { createServer } from "node:http";
 import { convexClient } from "./convex.mjs";
 import { resolveTicket } from "./crew.mjs";
 import { resolveTicketHermes } from "./runner-hermes.mjs";
+import { startTelegram } from "./telegram.mjs";
 
 // RUNNER=hermes → Hermes profile is the brain; anything else → built-in
 // Novita crew loop (RUNNER=mock short-circuits inside crew.mjs).
@@ -20,30 +25,35 @@ const resolve = process.env.RUNNER === "hermes" ? resolveTicketHermes : resolveT
 
 const dir = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 const ORG_ID = process.env.ORG_ID;
+const MULTI_ORG = process.env.MULTI_ORG === "1";
 const CONVEX_URL = process.env.CONVEX_URL;
 const PORT = Number(process.env.PORT ?? 8787);
 const PROMPT_VERSION = process.env.PROMPT_VERSION ?? "dev";
-if (!ORG_ID || !CONVEX_URL) {
-  console.error("ORG_ID and CONVEX_URL are required");
+if ((!ORG_ID && !MULTI_ORG) || !CONVEX_URL) {
+  console.error("CONVEX_URL and (ORG_ID or MULTI_ORG=1) are required");
   process.exit(1);
 }
 const convex = convexClient(CONVEX_URL);
 
-async function handleTicket(body) {
+async function handleTicket(body, orgId = ORG_ID) {
   const ticketId = await convex.mutation("agency:createTicket", {
-    orgId: ORG_ID,
+    orgId,
     source: body.source ?? "api",
     customerEmail: body.customerEmail,
     subject: body.subject,
     body: body.body,
   });
-  const runId = await convex.mutation("agency:startRun", {
-    orgId: ORG_ID, ticketId, kind: "ticket", promptVersion: PROMPT_VERSION,
-  });
-  return await runCrew({ runId, ticket: { ...body, source: body.source ?? "api" }, mode: "real" });
+  return await runTicket({ orgId, ticketId, ticket: { ...body, source: body.source ?? "api" } });
 }
 
-async function handleEval(body) {
+async function runTicket({ orgId, ticketId, ticket, fixture, mode = "real", kind = "ticket" }) {
+  const runId = await convex.mutation("agency:startRun", {
+    orgId, ticketId, kind, promptVersion: PROMPT_VERSION,
+  });
+  return await runCrew({ orgId, runId, ticket, fixture, mode });
+}
+
+async function handleEval(body, orgId = ORG_ID) {
   const c = body.case;
   const ticket = {
     customerEmail: c.customerFixture.email,
@@ -51,26 +61,21 @@ async function handleEval(body) {
   };
   // Seed the fixture customer so customerContext (the memory layer) is real.
   await convex.mutation("agency:upsertCustomer", {
-    orgId: ORG_ID, email: c.customerFixture.email,
+    orgId, email: c.customerFixture.email,
     plan: c.customerFixture.plan,
     riskFlags: c.customerFixture.riskFlags,
     notes: c.customerFixture.historySummary,
   });
   const ticketId = await convex.mutation("agency:createTicket", {
-    orgId: ORG_ID, source: "eval", customerEmail: ticket.customerEmail,
+    orgId, source: "eval", customerEmail: ticket.customerEmail,
     subject: ticket.subject, body: ticket.body,
   });
-  const runId = await convex.mutation("agency:startRun", {
-    orgId: ORG_ID, ticketId, kind: "eval", promptVersion: PROMPT_VERSION,
-  });
-  return await runCrew({ runId, ticket, fixture: c.customerFixture, mode: "eval" });
+  return await runTicket({ orgId, ticketId, ticket, fixture: c.customerFixture, mode: "eval", kind: "eval" });
 }
 
-async function runCrew({ runId, ticket, fixture, mode }) {
+async function runCrew({ orgId, runId, ticket, fixture, mode }) {
   try {
-    const final = await resolve({
-      convex, orgId: ORG_ID, runId, ticket, fixture, mode, dir,
-    });
+    const final = await resolve({ convex, orgId, runId, ticket, fixture, mode, dir });
     const escalated = String(final.action ?? "").startsWith("escalate");
     await convex.mutation("agency:finishRun", {
       runId,
@@ -94,15 +99,19 @@ createServer(async (req, res) => {
   };
   try {
     if (req.method === "GET" && req.url === "/health")
-      return reply(200, { ok: true, org: ORG_ID, runner: process.env.RUNNER ?? "novita" });
+      return reply(200, {
+        ok: true, org: MULTI_ORG ? "all" : ORG_ID,
+        runner: process.env.RUNNER ?? "novita",
+      });
 
     if (req.method === "POST" && (req.url === "/tickets" || req.url === "/resolve")) {
       let raw = "";
       for await (const chunk of req) raw += chunk;
       const body = JSON.parse(raw);
+      const orgId = body.orgId ?? ORG_ID;
       const result = req.url === "/tickets"
-        ? await handleTicket(body)
-        : await handleEval(body);
+        ? await handleTicket(body, orgId)
+        : await handleEval(body, orgId);
       return reply(200, result);
     }
     reply(404, { error: "not found" });
@@ -110,8 +119,62 @@ createServer(async (req, res) => {
     console.error(e);
     reply(500, { action: "ERROR", error: String(e.message ?? e) });
   }
-}).listen(PORT, () => console.log(`gateway up on :${PORT} (org ${ORG_ID})`));
+}).listen(PORT, () =>
+  console.log(`gateway up on :${PORT} (${MULTI_ORG ? "MULTI-ORG" : `org ${ORG_ID}`})`));
 
-import { startTelegram } from "./telegram.mjs";
-if (process.env.TELEGRAM_TOKEN)
-  startTelegram({ token: process.env.TELEGRAM_TOKEN, onTicket: handleTicket });
+// ---------------------------------------------------------------- watchers
+const orgs = async () =>
+  MULTI_ORG ? await convex.query("agency:listOrganizations", {}) : [{ _id: ORG_ID }];
+
+// Telegram: box env wins for the primary org; otherwise each org's
+// app-configured `telegramToken` setting. Checked every 30s so a newly
+// pasted token goes live without a restart; token change restarts the poller.
+const tgPollers = new Map(); // orgId -> { token, poller }
+async function ensureTelegram() {
+  try {
+    for (const org of await orgs()) {
+      const settings = await convex.query("agency:listSettings", { orgId: org._id });
+      const token =
+        (org._id === ORG_ID ? process.env.TELEGRAM_TOKEN : null) ||
+        settings.find((s) => s.key === "telegramToken")?.value;
+      const current = tgPollers.get(org._id);
+      if (!token || token === current?.token) continue;
+      current?.poller.stop();
+      tgPollers.set(org._id, {
+        token,
+        poller: startTelegram({ token, onTicket: (t) => handleTicket(t, org._id) }),
+      });
+      console.log(`telegram poller (re)started for org ${org._id}`);
+    }
+  } catch (e) {
+    console.error("telegram setting check:", e.message);
+  }
+}
+
+// Demo tickets sent from the app's main menu (judges/mentors trying the
+// product without a Telegram bot): poll the queue, run each once.
+const inFlight = new Set();
+async function pumpDemoTickets() {
+  try {
+    for (const org of await orgs()) {
+      const pending = await convex.query("agency:pendingDemoTickets", { orgId: org._id });
+      for (const t of pending) {
+        if (inFlight.has(t._id)) continue;
+        inFlight.add(t._id);
+        runTicket({
+          orgId: org._id, ticketId: t._id,
+          ticket: { customerEmail: t.customerEmail, subject: t.subject, body: t.body, source: "demo" },
+        })
+          .catch((e) => console.error("demo ticket failed:", e.message))
+          .finally(() => inFlight.delete(t._id));
+      }
+    }
+  } catch (e) {
+    console.error("demo queue check:", e.message);
+  }
+}
+
+ensureTelegram();
+pumpDemoTickets();
+setInterval(ensureTelegram, 30_000);
+setInterval(pumpDemoTickets, 10_000);

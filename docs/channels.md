@@ -25,17 +25,15 @@ bare Linode behind any firewall.
 5. BotFather replies with a **token** like
    `7712345678:AAHfake-tokenExampleXYZ`. Copy it — that's the bot's key.
 
-### Step 2 — Give the token to your box (2 min)
+### Step 2 — Paste the token in the app (30 sec, no SSH)
 
-SSH into the tenant's Linode and add the token to the gateway's `.env`:
+Open your agency's home screen (`/app.html`) → **Connect Telegram** → paste
+the token → Connect. The app validates it live with Telegram and shows
+**✅ live — customers can message @yourbot**. The gateway notices within
+~30 seconds and starts answering.
 
-```bash
-nano /home/joseeantonior/launchcare/backend/.env
-# find the TELEGRAM_TOKEN= line and paste:
-# TELEGRAM_TOKEN=7712345678:AAHfake-tokenExampleXYZ
-systemctl restart launchcare
-journalctl -u launchcare | tail -3   # you should see: "telegram poller started"
-```
+(Ops alternative: set `TELEGRAM_TOKEN` in the box's `.env` and restart —
+that env token overrides the app setting for the box's primary org.)
 
 ### Step 3 — Talk to your agent (1 min)
 

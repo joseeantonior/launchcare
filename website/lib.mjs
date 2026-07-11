@@ -42,11 +42,16 @@ export function convexClient(deploymentUrl, token) {
       body: JSON.stringify({ path, args: args ?? {}, format: "json" }),
     });
     const data = await res.json();
-    if (data.status !== "success") throw new Error(data.errorMessage ?? "convex error");
+    if (data.status !== "success")
+      // ConvexError carries the human-readable message in errorData
+      throw new Error(typeof data.errorData === "string"
+        ? data.errorData
+        : (data.errorMessage ?? "convex error"));
     return data.value;
   };
   return {
     query: (path, args) => call("query", path, args),
     mutation: (path, args) => call("mutation", path, args),
+    action: (path, args) => call("action", path, args),
   };
 }

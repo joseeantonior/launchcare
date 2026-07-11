@@ -2,10 +2,10 @@
 // org-scoped). The gateway hooks its tool-call lifecycle to logStep so the
 // trace builds itself. Every mentor drill maps to one query below.
 
-import { internalMutation, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { action, internalMutation, mutation, query } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
 import { defaultCrew } from "./defaultCrew.js";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const now = () => Date.now();
 
@@ -87,6 +87,27 @@ export const rescanWebsite = mutation({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
     await ctx.scheduler.runAfter(0, internal.scrape.scrapeWebsite, { orgId: args.orgId });
+  },
+});
+
+// "Connect Telegram" from the app: validate the BotFather token against the
+// live API, then store it as an org setting. The org's gateway box watches
+// this setting and (re)starts its poller within ~30s.
+export const connectTelegram = action({
+  args: { orgId: v.id("organizations"), token: v.string() },
+  handler: async (ctx, args) => {
+    const token = args.token.trim();
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const d = await res.json().catch(() => ({ ok: false }));
+    if (!d.ok)
+      throw new ConvexError("Telegram rejected this token — copy it exactly from @BotFather");
+    await ctx.runMutation(api.agency.setSetting, {
+      orgId: args.orgId, key: "telegramToken", value: token,
+    });
+    await ctx.runMutation(api.agency.setSetting, {
+      orgId: args.orgId, key: "telegramBotUsername", value: d.result.username,
+    });
+    return d.result.username;
   },
 });
 
@@ -212,6 +233,26 @@ export const createTicket = mutation({
       priority: args.priority ?? "normal",
       receivedAt: now(),
     });
+  },
+});
+
+export const getTicket = query({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, args) => await ctx.db.get(args.ticketId),
+});
+
+// Demo tickets created from the app's main menu, waiting for the org's
+// gateway to pick them up (it polls this).
+export const pendingDemoTickets = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const fresh = await ctx.db
+      .query("tickets")
+      .withIndex("by_org_status", (q) =>
+        q.eq("orgId", args.orgId).eq("status", "new"),
+      )
+      .collect();
+    return fresh.filter((t) => t.source === "demo");
   },
 });
 

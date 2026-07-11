@@ -134,7 +134,23 @@ export function makeHandlers(ctx) {
       return { results: hits };
     },
 
-    linkup_search: async () => NOT_CONFIGURED("linkup_search"),
+    linkup_search: async ({ query }) => {
+      if (!process.env.LINKUP_KEY) return NOT_CONFIGURED("linkup_search");
+      const res = await fetch("https://api.linkup.so/v1/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.LINKUP_KEY}`,
+        },
+        body: JSON.stringify({ q: query, depth: "standard", outputType: "sourcedAnswer" }),
+      });
+      if (!res.ok) return { error: `linkup ${res.status}: ${(await res.text()).slice(0, 200)}` };
+      const d = await res.json();
+      return {
+        answer: d.answer,
+        sources: (d.sources ?? []).slice(0, 5).map(({ name, url, snippet }) => ({ name, url, snippet })),
+      };
+    },
     elevenlabs_call: async () => NOT_CONFIGURED("elevenlabs_call"),
     actionlayer_start_task: async () => NOT_CONFIGURED("actionlayer_start_task"),
     // log_step is intercepted by the crew loop, never dispatched here.

@@ -45,12 +45,56 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
+// Primary ingestion: Linkup search restricted to the tenant's domain —
+// returns clean page content without crawling. Needs LINKUP_KEY set on the
+// Convex deployment (npx convex env set [--prod] LINKUP_KEY ...).
+async function linkupIngest(site: URL) {
+  if (!process.env.LINKUP_KEY) return null;
+  try {
+    const res = await fetch("https://api.linkup.so/v1/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.LINKUP_KEY}`,
+      },
+      body: JSON.stringify({
+        q: "product documentation, features, how-to guides, pricing, FAQ, and support information",
+        depth: "standard",
+        outputType: "searchResults",
+        includeDomains: [site.hostname],
+        maxResults: 10,
+      }),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const pages = (d.results ?? [])
+      .filter((r: any) => r.type !== "image" && r.content?.length > 100)
+      .map((r: any) => ({
+        url: r.url,
+        title: r.name,
+        content: String(r.content).slice(0, MAX_CHARS_PER_PAGE),
+      }));
+    return pages.length ? pages : null;
+  } catch {
+    return null;
+  }
+}
+
 export const scrapeWebsite = internalAction({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
     const org = await ctx.runQuery(api.agency.getOrganization, { orgId: args.orgId });
     if (!org?.website) return "no website on org";
     const base = new URL(org.website);
+
+    // Linkup first; naive same-origin crawl as fallback.
+    const viaLinkup = await linkupIngest(base);
+    if (viaLinkup) {
+      const count = await ctx.runMutation(internal.agency.replaceKnowledge, {
+        orgId: args.orgId, pages: viaLinkup,
+      });
+      return `stored ${count} pages from ${base.hostname} via Linkup`;
+    }
 
     const homeHtml = await fetchPage(base.href);
     if (!homeHtml) return `could not fetch ${base.href}`;

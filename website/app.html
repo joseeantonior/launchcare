@@ -134,12 +134,32 @@
               as law; you approve it before go-live.</li>
           <li><b>Connect Stripe</b> — a restricted key (charges:read, refunds:write) goes on
               <i>your</i> server, never stored here.</li>
-          <li><b>Connect channels</b> — support inbox forwarding, Telegram, phone.
-              <span class="pill">coming soon</span></li>
+          <li><b>Connect Telegram</b> — <span id="tgStatus">your customers message a bot; your crew answers.</span>
+            <div style="margin-top:6px;">
+              <span class="dim" style="font-size:13px;">Open <b>@BotFather</b> in Telegram → send <code>/newbot</code> → paste the token here:</span>
+              <div style="display:flex; gap:8px; margin-top:6px;">
+                <input id="tgToken" placeholder="7712345678:AAH..." style="flex:1;">
+                <button class="btn ghost" id="tgConnect" style="margin:0; padding:8px 14px;">Connect</button>
+              </div>
+            </div>
+          </li>
         </ul>
         <label>Support email (where escalations reach you)
           <input id="supportEmail" placeholder="founders@acmenotes.com"></label>
         <button class="btn ghost" id="saveEmail" style="margin-top:10px;">Save</button>
+      </div>
+
+      <div class="card wide">
+        <h2>Try your agency now</h2>
+        <p class="dim">Send a test ticket as if you were a customer — watch your crew work it
+          in Operations below, reply included. No setup needed.</p>
+        <form id="testTicketForm">
+          <label>subject <input name="subject" required value="How do I export my data?"></label>
+          <label>message <textarea name="body" required rows="3"
+            style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:9px 10px; border-radius:7px; font:inherit;">Is there a way to export everything as a zip or CSV?</textarea></label>
+          <button class="btn" type="submit">Send test ticket</button>
+        </form>
+        <p id="testStatus" class="dim" style="margin-top:10px;"></p>
       </div>
     </div>
 
@@ -233,6 +253,51 @@ $("#rescanBtn").addEventListener("click", async () => {
   try {
     await client().mutation("agency:rescanWebsite", { orgId });
     toast("rescanning your site — check back in a minute");
+  } catch (err) { toast(err.message); }
+});
+
+$("#tgConnect").addEventListener("click", async () => {
+  const token = $("#tgToken").value.trim();
+  if (!token) return;
+  $("#tgStatus").textContent = "checking token with Telegram…";
+  try {
+    const username = await client().action("agency:connectTelegram", {
+      orgId: localStorage.getItem("myOrgId"), token,
+    });
+    $("#tgToken").value = "";
+    $("#tgStatus").innerHTML = `✅ live — customers can message <b>@${esc(username)}</b> now (bot goes live within ~30s).`;
+    toast("Telegram connected");
+  } catch (err) {
+    $("#tgStatus").textContent = "";
+    toast(err.message);
+  }
+});
+
+$("#testTicketForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const orgId = localStorage.getItem("myOrgId");
+  try {
+    const ticketId = await client().mutation("agency:createTicket", {
+      orgId, source: "demo",
+      customerEmail: "you@test.demo",
+      subject: f.get("subject"), body: f.get("body"),
+    });
+    $("#testStatus").textContent = "sent — your crew is picking it up…";
+    const t0 = Date.now();
+    const timer = setInterval(async () => {
+      const t = await client().query("agency:getTicket", { ticketId }).catch(() => null);
+      if (!t) return;
+      if (["resolved", "escalated", "failed"].includes(t.status)) {
+        clearInterval(timer);
+        $("#testStatus").innerHTML = t.status === "failed"
+          ? "⚠️ the run failed — see Alerts in Operations below"
+          : `✅ <b>${esc(t.status)}</b> in ${Math.round((Date.now() - t0) / 1000)}s — ${esc(t.resolutionSummary ?? "")}`;
+      } else {
+        $("#testStatus").textContent =
+          `status: ${t.status} (${Math.round((Date.now() - t0) / 1000)}s) — watch the run build in Operations below`;
+      }
+    }, 4000);
   } catch (err) { toast(err.message); }
 });
 
@@ -342,6 +407,9 @@ async function renderHome(org) {
   ]);
   const email = settings.find((s) => s.key === "supportEmail")?.value;
   if (email) $("#supportEmail").value = email;
+  const botUsername = settings.find((s) => s.key === "telegramBotUsername")?.value;
+  if (botUsername)
+    $("#tgStatus").innerHTML = `✅ live — customers message <b>@${esc(botUsername)}</b>; paste a new token below to switch bots.`;
   $("#opsFrame").src =
     `dashboard.html?org=${org._id}&url=${encodeURIComponent(convexUrl)}&embed=1`;
   show("home");
