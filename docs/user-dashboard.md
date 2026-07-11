@@ -80,15 +80,26 @@ header.
    `https://launchcare.<you>.workers.dev, http://localhost:8080`.
 3. Copy the **Domain** and **Client ID** into the Worker variables (prod)
    and/or `website/config.js` (local).
-4. Tell Convex to trust those tokens:
+4. Tell Convex to trust those tokens (`--prod` for the production
+   deployment; **re-run `npx convex deploy` afterwards** — auth config is
+   applied at deploy time):
    ```bash
    cd backend
-   npx convex env set AUTH0_DOMAIN <your-tenant>.us.auth0.com
-   npx convex env set AUTH0_CLIENT_ID <client id>
+   npx convex env set --prod AUTH0_DOMAIN <your-tenant>.us.auth0.com
+   npx convex env set --prod AUTH0_CLIENT_ID <client id>
+   npx convex deploy
    ```
    (`backend/convex/auth.config.ts` reads these; empty values = no identity
    validation, i.e. dev mode. The vars must exist even if empty — Convex
    refuses to deploy an auth config with unset variables.)
+
+   **Custom Auth0 domain?** Use it as `AUTH0_DOMAIN` *and* as `auth0Domain`
+   in the app config — the value must match the token issuer, which is
+   whatever domain the app signs in through. `https://` prefix and trailing
+   slash are tolerated (normalized in auth.config.ts).
+
+   Debugging: the app calls `agency:whoami` after sign-in and shows a
+   yellow banner if Convex rejects the token, with the checklist inline.
 
 ## How auth reaches Convex
 

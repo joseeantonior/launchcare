@@ -7,9 +7,13 @@ window.LAUNCHCARE_CONFIG = {
   // Auth0 SPA application. Create at https://manage.auth0.com →
   // Applications → Create → Single Page Web App. Set the app's callback,
   // logout, and web-origin URLs to your site origin (and localhost for dev).
-  // Then enable it on the Convex deployment:
-  //   npx convex env set AUTH0_DOMAIN <your-tenant>.us.auth0.com
-  //   npx convex env set AUTH0_CLIENT_ID <client id>
+  //
+  // auth0Domain: tenant domain (dev-xxx.us.auth0.com) — or your Auth0
+  // CUSTOM DOMAIN (e.g. auth.yourdomain.com) if you have one configured.
+  // Whichever you use, Convex must get the SAME value (it must match the
+  // token issuer), and you must `npx convex deploy` after setting it:
+  //   npx convex env set --prod AUTH0_DOMAIN <same domain as below>
+  //   npx convex env set --prod AUTH0_CLIENT_ID <client id>
   auth0Domain: "",
   auth0ClientId: "",
 };

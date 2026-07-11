@@ -90,6 +90,14 @@ export const rescanWebsite = mutation({
   },
 });
 
+// Auth diagnostic: what identity (if any) Convex sees for this request.
+// null while signed in ⇒ token not accepted (env vars on wrong deployment,
+// deploy not re-run after env set, or domain/clientId mismatch).
+export const whoami = query({
+  args: {},
+  handler: async (ctx) => await ctx.auth.getUserIdentity(),
+});
+
 // The signed-in user's org (null when unauthenticated or not onboarded).
 export const myOrganization = query({
   args: {},

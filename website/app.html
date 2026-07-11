@@ -96,6 +96,9 @@
   <div class="view" id="home">
     <h1 id="orgName"></h1>
     <p class="dim" id="orgSite"></p>
+    <p class="dim">Org ID (for your server's <code>.env</code>):
+      <code id="orgIdCode"></code>
+      <button class="btn ghost" id="copyOrgId" style="margin:0 0 0 6px; padding:2px 10px; font-size:12px;">copy</button></p>
 
     <div class="grid">
       <div class="card wide">
@@ -326,6 +329,9 @@ $("#addRoleForm").addEventListener("submit", async (e) => {
 async function renderHome(org) {
   $("#orgName").textContent = org.name;
   $("#orgSite").textContent = org.website ?? "";
+  $("#orgIdCode").textContent = org._id;
+  $("#copyOrgId").onclick = () =>
+    navigator.clipboard.writeText(org._id).then(() => toast("org id copied"));
   $("#newRoleModel").innerHTML = modelOptions("pa/claude-sonnet-5");
   $("#toolChecks").innerHTML = AGENT_TOOLS.map((t) => `<label style="margin:0;">
     <input type="checkbox" value="${t}" style="width:auto;"
@@ -346,6 +352,20 @@ async function route() {
   const auth = await initAuth().catch((e) => { toast(e.message); return "dev"; });
   if (auth === "signedout") return show("signin");
   if (!convexUrl) return show("setup");
+  if (auth === "signedin") {
+    // Diagnostic: signed in with Auth0 but Convex rejects the token?
+    const identity = await client().query("agency:whoami", {}).catch(() => null);
+    if (!identity) {
+      const warn = document.createElement("div");
+      warn.style.cssText = "background:#3d2c00;border:1px solid var(--warn);color:var(--warn);" +
+        "padding:10px 24px;font-size:13px;";
+      warn.textContent = "Signed in, but Convex did not accept your identity — your org can't be " +
+        "found or bound. Check on the SAME deployment the site uses (--prod for production): " +
+        "npx convex env set --prod AUTH0_DOMAIN / AUTH0_CLIENT_ID, then run `npx convex deploy` " +
+        "again (auth config is applied at deploy time).";
+      document.body.prepend(warn);
+    }
+  }
   try {
     const org = await findMyOrg();
     org ? await renderHome(org) : show("onboard");
