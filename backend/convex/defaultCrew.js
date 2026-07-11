@@ -16,7 +16,7 @@ export const defaultCrew = [
   },
   {
     name: "product_specialist",
-    model: "pa/claude-opus-4-8",
+    model: "pa/claude-opus-4-8-cc",
     job: "Answer how-to and bug tickets from documentation and live search; produce workarounds and structured bug reports.",
     tools: ["docs_search", "linkup_search", "log_step"],
     guardrails: { maxCostUsdPerTask: 0.1, maxToolCalls: 5 },
@@ -34,7 +34,7 @@ export const defaultCrew = [
   },
   {
     name: "qa_reviewer",
-    model: "pa/claude-haiku-4-5-20251001",
+    model: "pa/claude-sonnet-5",
     job: "Review every outbound customer message for policy compliance, factual grounding, and tone before it sends.",
     tools: ["log_step"],
     guardrails: { maxCostUsdPerTask: 0.05, maxToolCalls: 2 },

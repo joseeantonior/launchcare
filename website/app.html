@@ -263,13 +263,12 @@ async function findMyOrg() {
 // Manager is a flat $4.99/mo; specialists are $4.99–$19.99/mo by model.
 const MANAGER_PRICE = 4.99;
 const MODELS = [
-  ["pa/claude-fable-5", "Claude Fable 5 — most capable", 19.99],
-  ["pa/claude-opus-4-8", "Claude Opus 4.8 — complex work", 14.99],
+  // ponytail: mirror of the ids Novita actually serves this account (curl /models)
+  ["pa/claude-opus-4-8-cc", "Claude Opus 4.8 — complex work", 14.99],
   ["pa/claude-sonnet-5", "Claude Sonnet 5 — everyday tasks", 9.99],
-  ["pa/claude-haiku-4-5-20251001", "Claude Haiku 4.5 — fast & cheap", 4.99],
-  ["pa/gpt-5.4", "GPT-5.4", 9.99],
-  ["pa/gemini-2.5-pro", "Gemini 2.5 Pro", 9.99],
-  ["pa/grok-4", "Grok 4", 9.99],
+  ["pa/claude-sonnet-5-hs", "Claude Sonnet 5 HS", 9.99],
+  ["pa/gpt-5.6-sol", "GPT-5.6 Sol", 9.99],
+  ["pa/gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite — fast & cheap", 4.99],
 ];
 // ponytail: unknown/custom models bill mid-tier until billing gets real
 const priceFor = (model) => MODELS.find(([id]) => id === model)?.[2] ?? 9.99;

@@ -30,7 +30,7 @@ custom_providers:
 
 model:
   provider: novita
-  model: pa/claude-opus-4-8   # the manager's tier; same partner ids as the crew
+  model: pa/claude-opus-4-8-cc   # the manager's tier; same partner ids as the crew
 ```
 
 And put the key in `~/.hermes/.env`:

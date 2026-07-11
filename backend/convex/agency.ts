@@ -22,7 +22,7 @@ async function insertOrgWithDefaults(ctx: any, args: {
     ["maxRefundAutoUsd", 25],
     ["perTicketBudgetUsd", 0.5],
     ["compBudgetPerCustomerUsd", 30],
-    ["managerModel", "pa/claude-opus-4-8"], // Novita partner model id; edit in dashboard
+    ["managerModel", "pa/claude-opus-4-8-cc"], // Novita partner model id; edit in dashboard
     // $/MTok per model — fill from your Novita account-manager pricing.
     ["modelPricesUsdPerMTok", {}],
     ["agencyName", "LaunchCare"],
