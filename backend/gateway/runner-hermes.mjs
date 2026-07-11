@@ -10,7 +10,9 @@
 import { spawn } from "node:child_process";
 import { gatherContext } from "./crew.mjs";
 
-const TIMEOUT_MS = 5 * 60 * 1000;
+// Hermes subagent chains are slow (each spins a full conversation); default
+// generously and tell the model its budget in the kickoff instead.
+const TIMEOUT_MS = Number(process.env.HERMES_TIMEOUT_MS ?? 10 * 60 * 1000);
 
 function kickoffPrompt({ runId, mode, ticket, fixture, context, roles, settings, policy }) {
   return `Handle this ONE support ticket end-to-end per your operating loop, then stop.
@@ -39,6 +41,9 @@ TRACE LOGGING (mandatory): after each envelope (plan/delegate/review/escalation/
 log it by running this in your terminal (stepType and a <=40-word PII-masked summary):
 curl -s -X POST ${process.env.CONVEX_URL}/api/mutation -H 'Content-Type: application/json' \\
   -d '{"path":"agency:logStep","format":"json","args":{"runId":"${runId}","agentRole":"manager","stepType":"plan","inputSummary":"..."}}'
+
+TIME BUDGET: you have ~8 minutes of wall clock. Prefer one batched delegation per
+specialist over many small ones; skip lanes this ticket doesn't need.
 
 FINISH: the very LAST line of your reply must be the FINAL envelope as one JSON object:
 {"action":"<action vocabulary>","summary":"...","policyRefs":["§..."],"customerReply":"<the message to send the customer>"}`;

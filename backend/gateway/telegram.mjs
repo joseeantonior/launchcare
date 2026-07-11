@@ -17,18 +17,24 @@ export function startTelegram({ token, onTicket }) {
   };
 
   async function handle(msg) {
-    const result = await onTicket({
-      source: "telegram",
-      channelRef: String(msg.chat.id),
-      customerEmail: `tg-${msg.from?.id ?? msg.chat.id}@telegram.local`,
-      subject: msg.text.slice(0, 80),
-      body: msg.text,
-    });
-    await api("sendMessage", {
-      chat_id: msg.chat.id,
-      text: result.customerReply ?? result.summary ??
-        "We're on it — you'll hear back shortly.",
-    });
+    let text;
+    try {
+      const result = await onTicket({
+        source: "telegram",
+        channelRef: String(msg.chat.id),
+        customerEmail: `tg-${msg.from?.id ?? msg.chat.id}@telegram.local`,
+        subject: msg.text.slice(0, 80),
+        body: msg.text,
+      });
+      text = result.customerReply ?? result.summary ??
+        "We're on it — you'll hear back shortly.";
+    } catch (e) {
+      // Never leave the customer in silence — the failed run already
+      // raised an alert for the operator.
+      console.error("telegram ticket failed:", e.message);
+      text = "This one's taking longer than expected — we've flagged it and a human will follow up shortly.";
+    }
+    await api("sendMessage", { chat_id: msg.chat.id, text });
   }
 
   let offset = 0;
