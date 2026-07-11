@@ -27,7 +27,8 @@ Two parts:
 cd backend && npm install
 CONVEX_AGENT_MODE=anonymous npx convex dev          # local backend, no login
 CONVEX_AGENT_MODE=anonymous npx convex run agency:seed   # new terminal
-npx serve ../website                                # then paste http://127.0.0.1:3210 in the top bar
+npx serve ../website    # landing page at /, dashboard at /dashboard.html
+                        # paste http://127.0.0.1:3210 in the dashboard's top bar
 ```
 
 Needs Node ≥ 20.12 — details in [docs/usage.md](docs/usage.md).
@@ -43,6 +44,7 @@ Needs Node ≥ 20.12 — details in [docs/usage.md](docs/usage.md).
 | `backend/policy/policy.md` | The "what the business allows" layer; §numbers referenced everywhere | Memory L5, Working product |
 | `backend/evals/cases.jsonl` | 20 cases: T01-T20, expected actions + mustNots | Evals L3 |
 | `backend/evals/run.mjs` | Runner: pass/fail vs expected, baseline gate exits 1 on regression | Evals L4 |
-| `website/index.html` | Dashboard page: runs + trace tree + 2-run diff, cost by agent, alerts, roles + createRole form, settings editor | Observability L4-L5, Mgmt UI |
+| `website/index.html` | Product landing page (hero, features, how-it-works) | Working product |
+| `website/dashboard.html` | Ops dashboard: runs + trace tree + 2-run diff, cost by agent, alerts, roles + createRole form, settings editor | Observability L4-L5, Mgmt UI |
 | `website/lib.mjs` | Tree builder, PII masking, Convex HTTP client (pure functions) | — |
 | `website/test.mjs` | Logic check for lib.mjs — `node website/test.mjs` | — |

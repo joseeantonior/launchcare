@@ -67,7 +67,7 @@ npx convex run agency:createRole '{
 (Prefix with `CONVEX_AGENT_MODE=anonymous` when running against the local
 deployment.)
 
-## 3. Website (dashboard) — run locally
+## 3. Website — run locally
 
 No build step. Serve the folder with anything:
 
@@ -75,7 +75,8 @@ No build step. Serve the folder with anything:
 npx serve website          # or: python3 -m http.server 8080 -d website
 ```
 
-Open it and paste your Convex deployment URL (the `CONVEX_URL` value from
+`/` is the product landing page; the ops dashboard is at `/dashboard.html`.
+Open the dashboard and paste your Convex deployment URL (the `CONVEX_URL` value from
 `backend/.env.local`, e.g. `http://127.0.0.1:3210` locally or
 `https://<name>.convex.cloud` in the cloud) into the top bar. It's saved in
 localStorage. The page polls every 5 s.
