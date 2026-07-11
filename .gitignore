@@ -3,5 +3,12 @@ node_modules/
 .convex/
 website/config.js
 backend/.env
+
+# Hermes Agent context files auto-created in the working dir on the box
+.agents/
+.claude/
+AGENTS.md
+CLAUDE.md
+skills-lock.json
 backend/convex/_generated/
 backend/evals/results-*.json
