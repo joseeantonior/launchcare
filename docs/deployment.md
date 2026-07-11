@@ -154,8 +154,8 @@ Each onboarded company gets a box that runs their agent crew.
      (`https://<your-site>/dashboard.html`, org dropdown shows every org;
      or `npx convex run agency:listOrganizations` locally)
    - `NOVITA_API_KEY` = from https://novita.ai/settings/key-management
-   - `STRIPE_KEY` = the customer's restricted key (charges:read,
-     refunds:write) — they create it in their Stripe dashboard
+   - `DODO_API_KEY` = the customer's Dodo Payments API key (their Dodo
+     dashboard → Developer → API Keys)
    - `PROMPT_VERSION` = the git tag you deployed, e.g. `v0.1`
 5. Make it a service that survives reboots:
    ```bash

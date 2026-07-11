@@ -11,7 +11,7 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
 │  • onboarding: name+website │ provision │  • gateway (backend/gateway) │
 │  • website scrape →         │ ────────► │  • prompts + policy +        │
 │    knowledge pack + policy  │           │    knowledge pack            │
-│  • tool connections (Stripe)│           │  • tenant secrets (env)      │
+│  • tool connections (Dodo)  │           │  • tenant secrets (env)      │
 │  • org designer: crew +     │           │  • (Hermes, when it lands)   │
 │    model tiers              │           └───────────────┬──────────────┘
 │  • billing (token margin)   │                           │
@@ -57,7 +57,7 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
    guess numbers wrong.
 2. **Provisioner** — Linode API + cloud-init from a golden image: installs
    Node + the backend folder, writes tenant env (Convex URL, org id, Novita
-   key, Stripe key), starts the gateway under systemd — exactly the manual
+   key, Dodo key), starts the gateway under systemd — exactly the manual
    Step 5 in [deployment.md](deployment.md). Same script works for the
    shared-box tier (one container per tenant) if per-tenant Linodes turn
    out too expensive at the low end.
@@ -76,7 +76,8 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
   require identity on customer-facing mutations, give gateway boxes a
   shared-secret header, restrict the admin dashboard queries.
 - Tenant secrets live only on the tenant's box (env), never in Convex.
-- Stripe keys should be restricted scope: charges:read + refunds:write.
+- Payment keys (Dodo Payments) live only on the tenant box; use test mode
+  (`DODO_API_BASE=https://test.dodopayments.com`) everywhere but production.
 - PII is masked in every trace summary and dashboard surface.
 
 ## Billing model

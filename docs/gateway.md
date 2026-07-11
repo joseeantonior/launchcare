@@ -19,7 +19,7 @@ channels / eval runner ──► gateway ──► Novita LLM API (manager + spe
 | `gateway/runner-hermes.mjs` | `RUNNER=hermes` — delegates the run to a Hermes profile; the assumed CLI contract lives ONLY here |
 | `gateway/telegram.mjs` | Telegram ingress via long-polling — see [channels.md](channels.md) |
 | `gateway/llm.mjs` | Novita client (OpenAI-compatible `chat/completions`), per-model cost calc, JSON extraction |
-| `gateway/tools.mjs` | Specialist tools: Stripe (live or eval-fixture), docs_search over the knowledge pack, linkup_search (live web, cited sources), stubs for the rest |
+| `gateway/tools.mjs` | Specialist tools: Dodo Payments (live or eval-fixture), docs_search over the knowledge pack, linkup_search (live web, cited sources), stubs for the rest |
 | `gateway/convex.mjs` | Convex HTTP client + PII masking + 40-word summaries |
 
 ## Running
@@ -93,8 +93,8 @@ shape.
 ## Eval mode
 
 `POST /resolve` seeds the case's fixture customer (so the memory layer is
-real), then runs with fixture-backed tools: `stripe_lookup` answers from the
-case's `stripeStatus`, refunds are simulated, nothing external is touched.
+real), then runs with fixture-backed tools: `dodo_lookup` answers from the
+case's `paymentStatus`, refunds are simulated, nothing external is touched.
 The eval runner (`evals/run.mjs`) POSTs here — see [usage.md](usage.md) §4.
 
 ## Knowledge pack

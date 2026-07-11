@@ -132,8 +132,8 @@
               <button class="btn ghost" id="rescanBtn" style="margin:0 0 0 8px; padding:3px 10px; font-size:13px;">Rescan</button></li>
           <li><b>Review your policy</b> — refund limits, escalation rules. Your crew treats it
               as law; you approve it before go-live.</li>
-          <li><b>Connect Stripe</b> — a restricted key (charges:read, refunds:write) goes on
-              <i>your</i> server, never stored here.</li>
+          <li><b>Connect Dodo Payments</b> — your Dodo API key goes on <i>your</i> server,
+              never stored here; your crew verifies payments and issues refunds through it.</li>
           <li><b>Connect Telegram</b> — <span id="tgStatus">your customers message a bot; your crew answers.</span>
             <div style="margin-top:6px;">
               <span class="dim" style="font-size:13px;">Open <b>@BotFather</b> in Telegram → send <code>/newbot</code> → paste the token here:</span>
@@ -337,8 +337,8 @@ const MODELS = [
 ];
 // ponytail: unknown/custom models bill mid-tier until billing gets real
 const priceFor = (model) => MODELS.find(([id]) => id === model)?.[2] ?? 9.99;
-const AGENT_TOOLS = ["docs_search", "linkup_search", "stripe_lookup",
-  "stripe_refund", "stripe_invoice", "elevenlabs_call",
+const AGENT_TOOLS = ["docs_search", "linkup_search", "dodo_lookup",
+  "dodo_refund", "dodo_invoice", "elevenlabs_call",
   "actionlayer_start_task", "log_step"];
 
 const modelOptions = (selected) => {

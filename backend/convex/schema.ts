@@ -68,7 +68,7 @@ export default defineSchema({
     orgId: v.id("organizations"),
     email: v.string(),
     name: v.optional(v.string()),
-    stripeCustomerId: v.optional(v.string()),
+    paymentCustomerId: v.optional(v.string()), // Dodo Payments customer_id
     plan: v.optional(v.string()), // free | pro | team | ...
     mrrUsd: v.optional(v.number()),
     signupAt: v.optional(v.number()),
@@ -172,7 +172,7 @@ export default defineSchema({
       plan: v.string(),
       historySummary: v.optional(v.string()),
       riskFlags: v.optional(v.array(v.string())),
-      stripeStatus: v.optional(v.string()),
+      paymentStatus: v.optional(v.string()),
     }),
     subject: v.string(),
     body: v.string(),

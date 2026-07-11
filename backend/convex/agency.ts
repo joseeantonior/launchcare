@@ -178,7 +178,7 @@ export const upsertCustomer = mutation({
     orgId: v.id("organizations"),
     email: v.string(),
     name: v.optional(v.string()),
-    stripeCustomerId: v.optional(v.string()),
+    paymentCustomerId: v.optional(v.string()),
     plan: v.optional(v.string()),
     riskFlags: v.optional(v.array(v.string())),
     notes: v.optional(v.string()),
@@ -525,6 +525,7 @@ export const updateRole = mutation({
     roleId: v.id("agentRoles"),
     model: v.optional(v.string()),
     active: v.optional(v.boolean()),
+    tools: v.optional(v.array(v.string())),
     systemPrompt: v.optional(v.string()),
     guardrails: v.optional(v.object({
       maxCostUsdPerTask: v.number(),

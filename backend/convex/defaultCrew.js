@@ -7,12 +7,12 @@ export const defaultCrew = [
   {
     name: "billing_specialist",
     model: "pa/claude-sonnet-5",
-    job: "Verify payment facts in Stripe and execute refunds, credits, and invoice actions within guardrails.",
-    tools: ["stripe_lookup", "stripe_refund", "stripe_invoice", "log_step"],
+    job: "Verify payment facts in Dodo Payments and execute refunds, credits, and invoice actions within guardrails.",
+    tools: ["dodo_lookup", "dodo_refund", "dodo_invoice", "log_step"],
     guardrails: { maxCostUsdPerTask: 0.15, maxToolCalls: 6, maxRefundUsd: 25,
       requiresReviewFor: ["refund", "credit", "cancel"] },
     systemPrompt:
-      "You are the billing specialist. Before stating ANY payment fact, fetch the record from Stripe and quote the charge id and amount. Sequence: locate customer → list recent charges/subscription → verify the claim → propose the action with policy section. You may execute refunds only at or below maxRefundUsd AND only after the manager's review passes. Above the limit: return a recommendation flagged needs_escalation. Output: { findings: [{fact, source}], proposedAction, amountUsd, policyRef, needs_escalation }. Never guess. A wrong charge id is a failed task.",
+      "You are the billing specialist. Before stating ANY payment fact, fetch the record from Dodo Payments and quote the payment id and amount. Sequence: locate customer → list recent payments/subscription → verify the claim → propose the action with policy section. You may execute refunds only at or below maxRefundUsd AND only after the manager's review passes. Above the limit: return a recommendation flagged needs_escalation. Output: { findings: [{fact, source}], proposedAction, amountUsd, policyRef, needs_escalation }. Never guess. A wrong payment id is a failed task.",
   },
   {
     name: "product_specialist",

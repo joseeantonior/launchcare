@@ -5,13 +5,13 @@ version: v0.1 · owner: {{FOUNDER_NAME}} · keep this file in git; tag on every 
 ## §0 Product facts
 - {{PRODUCT_NAME}}: {{one-line description}}.
 - Plans: Free ($0) · Pro ($4.99/mo) <!-- EDIT: your real plan matrix -->
-- Billing runs on Stripe. Subscription, not usage-billed.
+- Billing runs on Dodo Payments. Subscription, not usage-billed.
 
 ## §1 Refunds and credits
 - §1.1 AUTO-APPROVE full refund when: request is within 14 days of charge,
   amount ≤ $25 (`maxRefundAutoUsd`), first refund in 6 months, and the
-  charge is verified in Stripe. No questions beyond confirming the charge.
-- §1.2 Duplicate/erroneous charges: verify both charges in Stripe, refund
+  charge is verified in Dodo Payments. No questions beyond confirming the charge.
+- §1.2 Duplicate/erroneous charges: verify both charges in Dodo Payments, refund
   the duplicate immediately at any amount ≤ $50; above $50 escalate.
 - §1.3 Partial credit: service outage or verified bug blocking core use →
   credit one billing cycle (Pro) as account credit, not cash.
@@ -30,8 +30,8 @@ version: v0.1 · owner: {{FOUNDER_NAME}} · keep this file in git; tag on every 
 - Outbound calls: max 2 dial attempts per callback.
 
 ## §3 Verification before financial actions
-Match, in order: ticket email → customer record → Stripe customer → the
-specific charge. Any break in the chain = no financial action; reply asking
+Match, in order: ticket email → customer record → Dodo Payments customer → the
+specific payment. Any break in the chain = no financial action; reply asking
 for the receipt email or last-4, or escalate. Never act on the customer's
 description of a charge alone.
 

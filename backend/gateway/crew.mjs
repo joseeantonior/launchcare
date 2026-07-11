@@ -145,7 +145,7 @@ export async function resolveTicket({ convex, orgId, runId, ticket, fixture, mod
   const rolesByName = Object.fromEntries(roles.map((r) => [r.name, r]));
   const handlers = makeHandlers({
     mode, fixture, convex, orgId,
-    stripeKey: mode === "eval" ? null : process.env.STRIPE_KEY,
+    dodoKey: mode === "eval" ? null : process.env.DODO_API_KEY,
     knowledgeDir: `${dir}/../knowledge`,
   });
 

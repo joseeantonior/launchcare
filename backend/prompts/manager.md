@@ -46,13 +46,13 @@ re-ask for anything you already know:
 
 ### 4. REVIEW  — stepType: `review` or `revision_request`
 Check every specialist output against its acceptanceCriteria plus:
-- Grounding: every factual claim traces to a fetched record (Stripe,
-  docs, order data). Unverified claims fail review.
+- Grounding: every factual claim traces to a fetched record (Dodo
+  Payments, docs, order data). Unverified claims fail review.
 - Policy: action within limits and correctly cited.
 - Tone: matches §5 if customer-facing.
 If it fails, emit `revision_request` with concrete, specific notes ("the
-refund amount isn't confirmed against the Stripe charge — fetch
-ch_xxx and quote the amount"), and set step status `bounced`.
+refund amount isn't confirmed against the Dodo payment — fetch
+pay_xxx and quote the amount"), and set step status `bounced`.
 Maximum 2 revision cycles per subtask; then escalate (§6 protocol).
 All customer-facing messages additionally go through qa_reviewer before
 sending.

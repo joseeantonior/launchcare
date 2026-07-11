@@ -10,13 +10,13 @@ Strategy notes for the event — not needed to run the project.
 2. Register the 4 roles ([usage.md](usage.md) §3 — one script command).
 3. Fix the `actionlayer_reply` schema gap (`info`/`field_values`) so the
    escalate→resume loop works live.
-4. Restricted-scope Stripe key; decide the support inbox; collect the env
+4. Dodo Payments API key (test mode first); decide the support inbox; collect the env
    vars in [usage.md](usage.md) §5.
 5. Draft (don't post) the launch-post skeleton for the H7 cross-track hour.
 
 ## Rubric math this pack sets up
 
-- Working product 20x: real inbox + real Stripe + policy decisions = L4 by
+- Working product 20x: real inbox + real payments (Dodo) + policy decisions = L4 by
   mid-day; exception-only escalation via ActionLayer resume-loop = L5 (80).
   Every judging-time ticket resolved = +20 overflow. Success definition:
   policy-correct escalation counts as success (run status `escalated`).

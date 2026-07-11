@@ -106,7 +106,7 @@ Sanity check after editing `website/lib.mjs`: `node website/test.mjs`.
 ## 6. Evals
 
 The runner POSTs each case to the gateway's `/resolve` (eval mode:
-fixture-backed tools, no live Stripe/inbox). Start the gateway first, then:
+fixture-backed tools, no live payments/inbox). Start the gateway first, then:
 
 ```bash
 cd backend

@@ -32,7 +32,7 @@ const cases = readFileSync(`${dir}cases.jsonl`, "utf8")
 // ---------------------------------------------------------------------------
 // ADAPTER — POSTs each case to the gateway's eval endpoint. Start it first:
 //   ORG_ID=... CONVEX_URL=... NOVITA_API_KEY=... node gateway/index.mjs
-// Eval mode uses fixture-backed tools: no real inbox, no live Stripe.
+// Eval mode uses fixture-backed tools: no real inbox, no live payments.
 const GATEWAY = (process.env.GATEWAY_URL ?? "http://localhost:8787").replace(/\/$/, "");
 async function resolveTicket(c) {
   const res = await fetch(`${GATEWAY}/resolve`, {

@@ -1,7 +1,9 @@
 // Specialist tool definitions + handlers.
-// Eval mode answers from the case fixture (Stripe test doubles); real mode
+// Eval mode answers from the case fixture (payment test doubles); real mode
 // hits live APIs where a key is configured, otherwise returns a clear
 // "not configured" error so the agent takes the escalation path.
+// Billing runs on Dodo Payments (docs.dodopayments.com): Bearer key,
+// live/test via DODO_API_BASE.
 
 import { readdirSync, readFileSync } from "node:fs";
 
@@ -14,14 +16,14 @@ const def = (name, description, properties, required) => ({
 });
 
 export const TOOL_DEFS = {
-  stripe_lookup: def("stripe_lookup",
-    "Look up a customer and their recent charges/subscription in Stripe by email.",
+  dodo_lookup: def("dodo_lookup",
+    "Look up a customer and their recent payments/subscription in Dodo Payments by email.",
     { email: { type: "string" } }, ["email"]),
-  stripe_refund: def("stripe_refund",
-    "Refund a verified charge (full if amountUsd omitted).",
-    { chargeId: { type: "string" }, amountUsd: { type: "number" } }, ["chargeId"]),
-  stripe_invoice: def("stripe_invoice",
-    "Fetch the latest invoice for a customer email (for resending).",
+  dodo_refund: def("dodo_refund",
+    "Refund a verified payment in Dodo Payments (full refund; cite the payment_id).",
+    { paymentId: { type: "string" }, reason: { type: "string" } }, ["paymentId"]),
+  dodo_invoice: def("dodo_invoice",
+    "Fetch the latest payment's invoice link for a customer email (for resending).",
     { email: { type: "string" } }, ["email"]),
   docs_search: def("docs_search",
     "Search the product documentation/knowledge pack.",
@@ -43,64 +45,70 @@ export const TOOL_DEFS = {
 const NOT_CONFIGURED = (tool) =>
   ({ error: `${tool} is not configured on this box. Do not retry; report the blocker.` });
 
-// ctx: { mode: "eval"|"real", fixture, stripeKey, knowledgeDir }
+// ctx: { mode: "eval"|"real", fixture, dodoKey, knowledgeDir }
 export function makeHandlers(ctx) {
-  const stripe = async (path) => {
-    const res = await fetch(`https://api.stripe.com/v1/${path}`, {
-      headers: { Authorization: `Bearer ${ctx.stripeKey}` },
+  const DODO_BASE = (process.env.DODO_API_BASE ?? "https://live.dodopayments.com").replace(/\/$/, "");
+  const dodo = async (path, init) => {
+    const res = await fetch(`${DODO_BASE}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${ctx.dodoKey}`,
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
     });
     return await res.json();
   };
+  // Dodo payments filter by customer_id, not email — resolve the customer first.
+  const dodoCustomerByEmail = async (email) => {
+    const d = await dodo(`/customers?email=${encodeURIComponent(email)}&page_size=100`);
+    return (d.items ?? []).find((c) => c.email?.toLowerCase() === email.toLowerCase());
+  };
 
   return {
-    stripe_lookup: async ({ email }) => {
+    dodo_lookup: async ({ email }) => {
       if (ctx.mode === "eval")
         return {
-          source: "stripe (eval fixture)",
+          source: "dodo payments (eval fixture)",
           email,
           plan: ctx.fixture?.plan,
-          status: ctx.fixture?.stripeStatus ?? "no Stripe record found",
+          status: ctx.fixture?.paymentStatus ?? "no payment record found",
         };
-      if (!ctx.stripeKey) return NOT_CONFIGURED("stripe_lookup");
-      const customers = await stripe(`customers?email=${encodeURIComponent(email)}&limit=1`);
-      const customer = customers.data?.[0];
-      if (!customer) return { source: "stripe", email, status: "no Stripe customer found" };
-      const charges = await stripe(`charges?customer=${customer.id}&limit=5`);
+      if (!ctx.dodoKey) return NOT_CONFIGURED("dodo_lookup");
+      const customer = await dodoCustomerByEmail(email);
+      if (!customer) return { source: "dodo payments", email, status: "no customer found" };
+      const payments = await dodo(`/payments?customer_id=${customer.customer_id}&page_size=5`);
       return {
-        source: "stripe", customerId: customer.id,
-        charges: (charges.data ?? []).map((c) => ({
-          id: c.id, amountUsd: c.amount / 100, currency: c.currency,
-          created: c.created, status: c.status, refunded: c.refunded,
+        source: "dodo payments", customerId: customer.customer_id,
+        payments: (payments.items ?? []).map((p) => ({
+          id: p.payment_id, amountUsd: p.total_amount / 100, currency: p.currency,
+          created: p.created_at, status: p.status,
         })),
       };
     },
 
-    stripe_refund: async ({ chargeId, amountUsd }) => {
+    dodo_refund: async ({ paymentId, reason }) => {
       if (ctx.mode === "eval")
-        return { source: "stripe (eval fixture)", refunded: true, chargeId, amountUsd: amountUsd ?? "full" };
-      if (!ctx.stripeKey) return NOT_CONFIGURED("stripe_refund");
-      const body = new URLSearchParams({ charge: chargeId });
-      if (amountUsd) body.set("amount", String(Math.round(amountUsd * 100)));
-      const res = await fetch("https://api.stripe.com/v1/refunds", {
+        return { source: "dodo payments (eval fixture)", refunded: true, paymentId };
+      if (!ctx.dodoKey) return NOT_CONFIGURED("dodo_refund");
+      return await dodo("/refunds", {
         method: "POST",
-        headers: { Authorization: `Bearer ${ctx.stripeKey}` },
-        body,
+        body: JSON.stringify({ payment_id: paymentId, ...(reason ? { reason } : {}) }),
       });
-      return await res.json();
     },
 
-    stripe_invoice: async ({ email }) => {
+    dodo_invoice: async ({ email }) => {
       if (ctx.mode === "eval")
-        return { source: "stripe (eval fixture)", email, invoice: "in_eval_fixture", status: ctx.fixture?.stripeStatus };
-      if (!ctx.stripeKey) return NOT_CONFIGURED("stripe_invoice");
-      const customers = await stripe(`customers?email=${encodeURIComponent(email)}&limit=1`);
-      const customer = customers.data?.[0];
-      if (!customer) return { email, status: "no Stripe customer found" };
-      const invoices = await stripe(`invoices?customer=${customer.id}&limit=1`);
-      const inv = invoices.data?.[0];
-      return inv
-        ? { id: inv.id, hostedUrl: inv.hosted_invoice_url, amountUsd: inv.total / 100, status: inv.status }
-        : { email, status: "no invoices" };
+        return { source: "dodo payments (eval fixture)", email, invoice: "inv_eval_fixture", status: ctx.fixture?.paymentStatus };
+      if (!ctx.dodoKey) return NOT_CONFIGURED("dodo_invoice");
+      const customer = await dodoCustomerByEmail(email);
+      if (!customer) return { email, status: "no customer found" };
+      const payments = await dodo(`/payments?customer_id=${customer.customer_id}&page_size=1&status=succeeded`);
+      const p = payments.items?.[0];
+      return p
+        ? { paymentId: p.payment_id, amountUsd: p.total_amount / 100, status: p.status,
+            invoiceUrl: `${DODO_BASE}/invoices/payments/${p.payment_id}` }
+        : { email, status: "no payments" };
     },
 
     docs_search: async ({ query }) => {
