@@ -50,9 +50,16 @@ export async function resolveTicketHermes({ convex, orgId, runId, ticket, fixtur
 
   const bin = process.env.HERMES_BIN ?? "hermes";
   const profile = process.env.HERMES_PROFILE ?? "launchcare";
+  // Pass provider+model explicitly (org's managerModel setting) — verified
+  // working shape; immune to broken default-model resolution in config.yaml.
+  const provider = process.env.HERMES_PROVIDER ?? "novita";
+  const model = settings.managerModel ?? "pa/claude-opus-4-8-cc";
   const stdout = await new Promise((resolve, reject) => {
     // --yolo: headless runs can't answer approval prompts. -Q keeps output clean.
-    const child = spawn(bin, ["-p", profile, "--yolo", "-Q", "-z", prompt], {
+    const child = spawn(bin, [
+      "-p", profile, "--yolo",
+      "chat", "--provider", provider, "-m", model, "-Q", "-q", prompt,
+    ], {
       stdio: ["ignore", "pipe", "inherit"],
     });
     const timer = setTimeout(() => {

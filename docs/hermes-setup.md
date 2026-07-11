@@ -106,10 +106,14 @@ hermes -p launchcare sessions export   # keep these — your Hermes receipts
 
 ### How it works / troubleshooting
 
-- The gateway invokes `hermes -p launchcare --yolo -Q -z "<kickoff>"` per
-  ticket ([gateway/runner-hermes.mjs](../backend/gateway/runner-hermes.mjs)
-  — the only Hermes-specific file). `--yolo` is required: headless runs
-  can't answer approval prompts.
+- The gateway invokes
+  `hermes -p launchcare --yolo chat --provider novita -m <managerModel> -Q -q "<kickoff>"`
+  per ticket ([gateway/runner-hermes.mjs](../backend/gateway/runner-hermes.mjs)
+  — the only Hermes-specific file). Provider + model are passed explicitly
+  (model = the org's `managerModel` setting, editable in the dashboard), so
+  a broken default-model in `config.yaml` can't 404 the runs. `--yolo` is
+  required: headless runs can't answer approval prompts. `HERMES_PROVIDER`
+  env overrides the provider name.
 - The kickoff carries the five context blocks (ticket, customer memory,
   policy, roles, settings) plus that run's exact trace-logging curl.
 - The FINAL envelope must be the last JSON object in Hermes's answer — the
