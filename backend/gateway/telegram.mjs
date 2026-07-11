@@ -32,18 +32,24 @@ export function startTelegram({ token, onTicket }) {
   }
 
   let offset = 0;
+  let fails = 0;
   async function poll() {
     try {
       const updates = await api("getUpdates", { offset, timeout: 25 });
+      fails = 0;
       for (const u of updates.result ?? []) {
         offset = u.update_id + 1;
         if (u.message?.text)
           handle(u.message).catch((e) => console.error("telegram handle:", e.message));
       }
     } catch (e) {
-      // surface the network-level cause (ENOTFOUND, ETIMEDOUT, ECONNREFUSED…)
-      console.error("telegram poll:", e.message, e.cause?.code ?? e.cause?.message ?? "");
-      await new Promise((r) => setTimeout(r, 5000));
+      // Single blips are routine (Telegram closes kept-alive sockets between
+      // long polls); retry fast, and only log when failures persist.
+      fails++;
+      if (fails >= 3)
+        console.error(`telegram poll: ${fails} consecutive failures:`,
+          e.message, e.cause?.code ?? e.cause?.message ?? "");
+      await new Promise((r) => setTimeout(r, Math.min(fails * 2000, 10000)));
     }
     poll();
   }
