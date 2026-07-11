@@ -196,6 +196,28 @@ order).
 
 ---
 
+## Instant deploys (CI)
+
+`.github/workflows/deploy.yml` deploys **on every push to master**: the
+website to Cloudflare and the backend to Convex prod. One-time setup — add
+three secrets in GitHub → your repo → **Settings → Secrets and variables →
+Actions → New repository secret**:
+
+| Secret | Where to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | https://dash.cloudflare.com/profile/api-tokens → Create Token → use the **Edit Cloudflare Workers** template |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages → right sidebar (or the URL after `dash.cloudflare.com/`) |
+| `CONVEX_DEPLOY_KEY` | https://dashboard.convex.dev → your project → **Production** deployment → Settings → **Generate a deploy key** |
+
+After that: merge a PR → site and backend are live in ~1 minute. Manual
+`wrangler deploy` / `npx convex deploy` still work and do the same thing.
+
+**Variable precedence caveat:** values saved in the Cloudflare dashboard
+(Settings → Variables and Secrets) **override** the `vars` in
+`wrangler.jsonc`. The real production constants live in wrangler.jsonc now —
+if you previously saved empty/placeholder variables in the dashboard, delete
+them there or they'll shadow the committed values.
+
 ## Reference
 
 ### Data layer → Convex cloud
