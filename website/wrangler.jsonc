@@ -13,11 +13,12 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  // App config served at /config.js — set real values in the Cloudflare
-  // dashboard (Settings → Variables and Secrets) or here. Not secrets.
+  // App config served at /config.js — browser-visible by design, not
+  // secrets. Dashboard variables (Settings → Variables and Secrets)
+  // override these.
   "vars": {
-    "CONVEX_URL": "",
-    "AUTH0_DOMAIN": "",
-    "AUTH0_CLIENT_ID": ""
+    "CONVEX_URL": "https://posh-setter-464.convex.cloud",
+    "AUTH0_DOMAIN": "auth.launchcare.io",
+    "AUTH0_CLIENT_ID": "XsY5rzAaVJIUUJQhR1RfI3zd3GIr1yO4"
   }
 }
