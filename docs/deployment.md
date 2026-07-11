@@ -43,11 +43,14 @@ It prints your production URL, like `https://brave-otter-123.convex.cloud`.
 https://dashboard.convex.dev → your project → Settings → URL.)
 
 Convex will refuse to deploy until the Auth0 variables exist. Create them
-empty for now (Step 4 fills them):
+empty for now (Step 4 fills them). **Careful: `env set` targets the DEV
+deployment by default — production needs `--prod`:**
 
 ```bash
 npx convex env set AUTH0_DOMAIN -- ""
 npx convex env set AUTH0_CLIENT_ID -- ""
+npx convex env set --prod AUTH0_DOMAIN -- ""
+npx convex env set --prod AUTH0_CLIENT_ID -- ""
 ```
 
 ### Step 2 — Put the website on Cloudflare (~5 min)
@@ -97,19 +100,37 @@ for testing, don't onboard real customers yet).
    Click **Save Changes** (bottom of page).
 4. From the same Settings page, copy **Domain** (looks like
    `dev-abc123.us.auth0.com`) and **Client ID**.
+   **Using an Auth0 custom domain** (e.g. `auth.yourdomain.com`, configured
+   under Auth0 → Branding → Custom Domains)? Then use the **custom domain
+   everywhere** in the next two steps instead of the tenant domain — tokens
+   are issued by whichever domain the app signs in through, and Convex
+   rejects tokens whose issuer doesn't match its `AUTH0_DOMAIN` exactly.
 5. Paste both into the Cloudflare variables from Step 3 (`AUTH0_DOMAIN`,
    `AUTH0_CLIENT_ID`).
-6. Tell Convex to trust Auth0 tokens:
+6. Tell Convex to trust Auth0 tokens — **on the production deployment**
+   (`--prod`; without it you only set the dev deployment and sign-ins won't
+   bind orgs in prod):
    ```bash
    cd backend
-   npx convex env set AUTH0_DOMAIN dev-abc123.us.auth0.com
-   npx convex env set AUTH0_CLIENT_ID <the client id>
+   npx convex env set --prod AUTH0_DOMAIN dev-abc123.us.auth0.com
+   npx convex env set --prod AUTH0_CLIENT_ID <the client id>
    npx convex deploy
    ```
 
 Check: open `https://<your-site>/app.html` → you should see a **Sign in**
 button → signing up with any email works → you land on the onboarding form →
 filling it creates your org **with its 4-agent crew already registered**.
+
+**If you're signed in but the app shows a yellow warning** ("Convex did not
+accept your identity"), one of these is wrong — fix and `npx convex deploy`
+again:
+- Auth0 vars were set without `--prod` (they went to the dev deployment);
+- you didn't re-run `npx convex deploy` after setting them (auth config is
+  applied at deploy time);
+- the domain doesn't match the token issuer (custom domain vs tenant
+  domain — must be the same value in the Cloudflare vars and in Convex).
+Orgs created while auth was broken are unbound to your user — just onboard
+again after fixing; the strays are harmless.
 
 ### Step 5 — One server per customer (~15 min per box, until the provisioner automates it)
 

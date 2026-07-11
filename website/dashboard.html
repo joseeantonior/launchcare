@@ -55,6 +55,7 @@
   <select id="orgSelect" style="background:var(--panel);border:1px solid var(--line);color:var(--fg);padding:5px 8px;border-radius:6px;">
     <option value="">— org —</option>
   </select>
+  <code id="orgIdShow" class="dim" style="font-size:12px;" title="org id — click to copy"></code>
   <nav>
     <button data-tab="runs" class="active">Runs</button>
     <button data-tab="cost">Cost by agent</button>
@@ -150,8 +151,12 @@ const client = () => convexClient(urlInput.value.trim().replace(/\/$/, ""));
 
 const orgSelect = $("#orgSelect");
 const orgId = () => forcedOrg ?? orgSelect.value;
+const showOrgId = () => { $("#orgIdShow").textContent = orgId() || ""; };
+$("#orgIdShow").addEventListener("click", () =>
+  navigator.clipboard.writeText(orgId()).then(() => toast("org id copied")));
 orgSelect.addEventListener("change", () => {
   localStorage.setItem("orgId", orgSelect.value);
+  showOrgId();
   refresh();
 });
 if (qp.get("embed")) {
@@ -328,6 +333,7 @@ async function refresh() {
     ]);
     renderRuns(runs); renderCost(cost); renderAlerts(alerts);
     renderRoles(roles); renderSettings(settings);
+    showOrgId();
     $("#status").textContent = `live · ${new Date().toLocaleTimeString()}`;
   } catch (e) { $("#status").textContent = `error: ${e.message}`; }
 }
