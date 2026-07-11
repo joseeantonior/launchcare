@@ -1,41 +1,59 @@
-// RUNNER=hermes — delegate the whole crew run to a Hermes profile instead of
-// the built-in Novita loop. THE ASSUMED CONTRACT LIVES ONLY IN THIS FILE;
-// when the real Hermes interface is known, adjust here and nothing else.
-//
-// Contract (from the pack's original notes):
-//   - invoke: `hermes run --profile <profile> --json`  (HERMES_BIN /
-//     HERMES_PROFILE env override; profile carries the manager system
-//     prompt and specialist subagent wiring)
-//   - stdin: one JSON object with the full kickoff context:
-//       { runId, orgId, mode, ticket, fixture, customerContext, policy,
-//         activeRoles, settings, convexUrl }
-//     Hermes-side lifecycle hooks use runId+convexUrl to log steps to
-//     agency:logStep themselves (that's how the trace builds).
-//   - stdout: the LAST JSON object printed is the manager's FINAL envelope
-//     { action, summary, policyRefs? }.
-//   - non-zero exit or no parseable envelope = failed run.
+// RUNNER=hermes — delegate the run to a Hermes Agent profile
+// (https://hermes-agent.nousresearch.com). Contract per the official CLI
+// docs: `hermes -p <profile> --yolo -z "<prompt>"` returns the final answer
+// as plain text; we require the FINAL envelope as the last JSON object in
+// it. The profile's SOUL.md carries the manager system prompt
+// (scripts/render-hermes-profile.mjs); the per-run kickoff below carries
+// the five context blocks + trace-logging instructions (Hermes logs steps
+// itself by curling agency:logStep — it has a terminal).
 
 import { spawn } from "node:child_process";
 import { gatherContext } from "./crew.mjs";
 
 const TIMEOUT_MS = 5 * 60 * 1000;
 
+function kickoffPrompt({ runId, mode, ticket, fixture, context, roles, settings, policy }) {
+  return `Handle this ONE support ticket end-to-end per your operating loop, then stop.
+
+TICKET:
+${JSON.stringify({ subject: ticket.subject, body: ticket.body, source: ticket.source, email: ticket.customerEmail }, null, 2)}
+
+CUSTOMER CONTEXT:
+${JSON.stringify({ ...context, fixture }, null, 2)}
+
+POLICY (the law — cite §numbers):
+${policy}
+
+ACTIVE ROLES (spawn subagents per DELEGATE envelope; use each role's systemPrompt):
+${JSON.stringify(roles.map(({ name, job, tools, model, guardrails, systemPrompt }) =>
+    ({ name, job, tools, model, guardrails, systemPrompt })), null, 2)}
+
+SETTINGS:
+${JSON.stringify(settings)}
+
+MODE: ${mode}${mode === "eval"
+    ? " — verify facts against the fixture in CUSTOMER CONTEXT; never touch live systems."
+    : ""}
+
+TRACE LOGGING (mandatory): after each envelope (plan/delegate/review/escalation/final),
+log it by running this in your terminal (stepType and a <=40-word PII-masked summary):
+curl -s -X POST ${process.env.CONVEX_URL}/api/mutation -H 'Content-Type: application/json' \\
+  -d '{"path":"agency:logStep","format":"json","args":{"runId":"${runId}","agentRole":"manager","stepType":"plan","inputSummary":"..."}}'
+
+FINISH: the very LAST line of your reply must be the FINAL envelope as one JSON object:
+{"action":"<action vocabulary>","summary":"...","policyRefs":["§..."],"customerReply":"<the message to send the customer>"}`;
+}
+
 export async function resolveTicketHermes({ convex, orgId, runId, ticket, fixture, mode, dir }) {
   const { context, roles, settings, policy } = await gatherContext({ convex, orgId, ticket, dir });
-  const input = JSON.stringify({
-    runId, orgId, mode, ticket, fixture,
-    customerContext: context, policy,
-    activeRoles: roles.map(({ name, job, tools, model, guardrails, systemPrompt }) =>
-      ({ name, job, tools, model, guardrails, systemPrompt })),
-    settings,
-    convexUrl: process.env.CONVEX_URL,
-  });
+  const prompt = kickoffPrompt({ runId, mode, ticket, fixture, context, roles, settings, policy });
 
   const bin = process.env.HERMES_BIN ?? "hermes";
   const profile = process.env.HERMES_PROFILE ?? "launchcare";
   const stdout = await new Promise((resolve, reject) => {
-    const child = spawn(bin, ["run", "--profile", profile, "--json"], {
-      stdio: ["pipe", "pipe", "inherit"],
+    // --yolo: headless runs can't answer approval prompts. -Q keeps output clean.
+    const child = spawn(bin, ["-p", profile, "--yolo", "-Q", "-z", prompt], {
+      stdio: ["ignore", "pipe", "inherit"],
     });
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
@@ -48,16 +66,15 @@ export async function resolveTicketHermes({ convex, orgId, runId, ticket, fixtur
       clearTimeout(timer);
       code === 0 ? resolve(out) : reject(new Error(`hermes exited ${code}`));
     });
-    child.stdin.end(input);
   });
 
-  // Last JSON object on stdout = the final envelope.
-  const jsonLines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
-  for (const line of jsonLines.reverse()) {
+  // The FINAL envelope = last JSON object in the answer.
+  const jsonMatches = stdout.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) ?? [];
+  for (const candidate of jsonMatches.reverse()) {
     try {
-      const envelope = JSON.parse(line);
+      const envelope = JSON.parse(candidate);
       if (envelope.action) return envelope;
     } catch { /* keep scanning up */ }
   }
-  throw new Error(`hermes produced no final envelope; stdout tail: ${stdout.slice(-200)}`);
+  throw new Error(`hermes produced no final envelope; output tail: ${stdout.slice(-200)}`);
 }

@@ -104,12 +104,13 @@ recording, evals, dashboard) is identical:
 
 - *(unset)* — the built-in Novita crew loop (`crew.mjs`).
 - `mock` — resolves everything `reply_only` with no LLM spend (plumbing/CI).
-- `hermes` — spawns `hermes run --profile launchcare --json`
-  (`HERMES_BIN`/`HERMES_PROFILE` override), passes the full kickoff context
-  as JSON on stdin (`runId` + `convexUrl` included so Hermes-side lifecycle
-  hooks log steps to `agency:logStep` themselves), and reads the FINAL
-  envelope as the last JSON object on stdout.
+- `hermes` — spawns `hermes -p launchcare --yolo -Q -z "<kickoff>"`
+  ([Hermes Agent](https://hermes-agent.nousresearch.com) real CLI;
+  `HERMES_BIN`/`HERMES_PROFILE` override). The profile's `SOUL.md` carries
+  the manager prompt (`scripts/render-hermes-profile.mjs`); the kickoff
+  carries the five context blocks plus that run's trace-logging curl, so
+  Hermes logs its own steps to `agency:logStep`. The FINAL envelope is the
+  last JSON object in its answer. Box setup: [hermes-setup.md](hermes-setup.md).
 
-The Hermes contract is an assumption from the pack's notes and lives ONLY
-in `runner-hermes.mjs` — verified end-to-end against a stub binary; adjust
-that one file when the real Hermes interface is confirmed.
+The Hermes specifics live ONLY in `runner-hermes.mjs` — verified end-to-end
+against a stub binary that speaks the documented CLI.

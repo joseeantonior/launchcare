@@ -22,6 +22,7 @@ Two parts:
 | [docs/user-dashboard.md](docs/user-dashboard.md) | The customer app: sign-up flow, onboarding, Auth0 setup, config, dev mode |
 | [docs/gateway.md](docs/gateway.md) | The agent service: crew loop, tools, Novita models per role, eval mode, runners (incl. `RUNNER=hermes`) |
 | [docs/channels.md](docs/channels.md) | **ELI5: connect Telegram** (bot → box → talking to your agent in 5 min), direct HTTP ingress, what's next |
+| [docs/hermes-setup.md](docs/hermes-setup.md) | **ELI5: put Hermes behind the gateway** — install, Novita provider, profile, flip `RUNNER=hermes`, session receipts |
 | [docs/architecture.md](docs/architecture.md) | Multi-tenant plan: control plane vs data plane, what exists vs what's next, security, billing |
 | [docs/deployment.md](docs/deployment.md) | **ELI5 zero-to-production walkthrough** + reference: Convex cloud, Cloudflare Worker (incl. variables), tenant boxes |
 | [docs/hackathon-notes.md](docs/hackathon-notes.md) | Checklist, rubric math, mentor drills, cautions |
