@@ -29,10 +29,32 @@
          cursor:pointer; margin-top:16px; }
   .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
   table { border-collapse:collapse; width:100%; margin-top:8px; }
-  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line);
+           font-size:14px; vertical-align:middle; }
   th { color:var(--dim); font-weight:normal; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
-          gap:16px; margin-top:16px; }
+
+  /* stacked collapsible sections */
+  .sec { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+         margin-top:16px; overflow:hidden; }
+  .sec > summary { cursor:pointer; padding:14px 18px; font-weight:600; font-size:15px;
+                   list-style:none; user-select:none; }
+  .sec > summary::before { content:"▸"; color:var(--acc); margin-right:10px;
+                           display:inline-block; transition:transform .15s; }
+  .sec[open] > summary::before { transform:rotate(90deg); }
+  .sec > summary::-webkit-details-marker { display:none; }
+  .sec[open] > summary { border-bottom:1px solid var(--line); }
+  .sec .secBody { padding:16px 18px; }
+  .sec summary .dim { font-weight:normal; font-size:13.5px; }
+
+  /* crew table: fixed proportions so the job text wraps sanely */
+  table.crew { table-layout:fixed; }
+  table.crew th:nth-child(1), table.crew td:nth-child(1) { width:17%; }
+  table.crew th:nth-child(2), table.crew td:nth-child(2) { width:44%; }
+  table.crew th:nth-child(3), table.crew td:nth-child(3) { width:29%; }
+  table.crew th:nth-child(4), table.crew td:nth-child(4) { width:10%; text-align:right; }
+  table.crew td:nth-child(2) { color:var(--dim); font-size:13.5px; line-height:1.45; }
+  table.crew select { width:100%; background:var(--bg); border:1px solid var(--line);
+                      color:var(--fg); padding:6px 8px; border-radius:7px; }
   ul.next { margin:8px 0 0 18px; } ul.next li { margin:6px 0; color:var(--dim); }
   ul.next b { color:var(--fg); }
   iframe { width:100%; height:640px; border:1px solid var(--line); border-radius:10px;
@@ -94,24 +116,37 @@
 
   <!-- home -->
   <div class="view" id="home">
-    <h1 id="orgName"></h1>
-    <p class="dim" id="orgSite"></p>
-    <p class="dim">Org ID (for your server's <code>.env</code>):
-      <code id="orgIdCode"></code>
-      <button class="btn ghost" id="copyOrgId" style="margin:0 0 0 6px; padding:2px 10px; font-size:12px;">copy</button></p>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
+      <div>
+        <h1 id="orgName" style="margin-bottom:2px;"></h1>
+        <p class="dim" id="orgSite" style="font-size:14px;"></p>
+      </div>
+      <p class="dim" style="font-size:13px;">Org ID: <code id="orgIdCode"></code>
+        <button class="btn ghost" id="copyOrgId" style="margin:0 0 0 6px; padding:2px 10px; font-size:12px;">copy</button></p>
+    </div>
 
-    <div class="grid">
-      <div class="card wide">
-        <h2>Your crew</h2>
-        <p class="dim">Pick the model behind each agent — heavier models for harder jobs.
-          Your manager is $4.99/mo; each agent is $4.99–$19.99/mo by model.</p>
-        <table><thead><tr><th>agent</th><th>job</th><th>model</th><th>/mo</th></tr></thead>
+    <details class="sec" open>
+      <summary>Try your agency <span class="dim">— send a test ticket, watch the crew work it</span></summary>
+      <div class="secBody">
+        <form id="testTicketForm" style="display:grid; grid-template-columns: 1fr 2fr auto; gap:10px; align-items:end;">
+          <label style="margin:0;">subject <input name="subject" required value="How do I export my data?"></label>
+          <label style="margin:0;">message <input name="body" required value="Is there a way to export everything as a zip or CSV?"></label>
+          <button class="btn" type="submit" style="margin:0;">Send test ticket</button>
+        </form>
+        <p id="testStatus" class="dim" style="margin:10px 0 0;"></p>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>Your crew <span class="dim" id="crewTotal"></span></summary>
+      <div class="secBody">
+        <p class="dim" style="margin-bottom:6px;">Pick the model behind each agent — heavier models
+          for harder jobs. Manager $4.99/mo + each agent $4.99–$19.99/mo by model.</p>
+        <table class="crew"><thead><tr><th>agent</th><th>job</th><th>model</th><th style="text-align:right;">/mo</th></tr></thead>
           <tbody id="crewRows"></tbody></table>
-        <p id="crewTotal" style="margin-top:10px; text-align:right;"></p>
-
-        <details style="margin-top:16px;">
-          <summary style="cursor:pointer; color:var(--acc);">+ Add an agent</summary>
-          <form id="addRoleForm">
+        <details style="margin-top:14px;">
+          <summary style="cursor:pointer; color:var(--acc); font-size:14px;">+ Add an agent</summary>
+          <form id="addRoleForm" style="max-width:640px;">
             <label>name (snake_case) <input name="name" required placeholder="sr_tech_support"></label>
             <label>job (one sentence) <input name="job" required placeholder="Handle escalated technical issues end-to-end."></label>
             <label>model <select name="model" id="newRoleModel" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:9px 10px; border-radius:7px;"></select></label>
@@ -124,18 +159,16 @@
           </form>
         </details>
       </div>
+    </details>
 
-      <div class="card wide">
-        <h2>Next steps</h2>
+    <details class="sec">
+      <summary>Setup <span class="dim">— knowledge pack, channels, policy</span></summary>
+      <div class="secBody">
         <ul class="next">
-          <li><b>Knowledge pack</b> — <span id="knowledgeStatus">scanning <span id="siteRef">your website</span>…</span>
+          <li><b>Knowledge pack</b> — <span id="knowledgeStatus">scanning your website…</span>
               <button class="btn ghost" id="rescanBtn" style="margin:0 0 0 8px; padding:3px 10px; font-size:13px;">Rescan</button></li>
-          <li><b>Review your policy</b> — refund limits, escalation rules. Your crew treats it
-              as law; you approve it before go-live.</li>
-          <li><b>Connect Dodo Payments</b> — your Dodo API key goes on <i>your</i> server,
-              never stored here; your crew verifies payments and issues refunds through it.</li>
           <li><b>Connect Telegram</b> — <span id="tgStatus">your customers message a bot; your crew answers.</span>
-            <div style="margin-top:6px;">
+            <div style="margin-top:6px; max-width:560px;">
               <span class="dim" style="font-size:13px;">Open <b>@BotFather</b> in Telegram → send <code>/newbot</code> → paste the token here:</span>
               <div style="display:flex; gap:8px; margin-top:6px;">
                 <input id="tgToken" placeholder="7712345678:AAH..." style="flex:1;">
@@ -143,29 +176,25 @@
               </div>
             </div>
           </li>
+          <li><b>Connect Dodo Payments</b> — your Dodo API key goes on <i>your</i> server,
+              never stored here; your crew verifies payments and issues refunds through it.</li>
+          <li><b>Review your policy</b> — refund limits, escalation rules. Your crew treats it
+              as law; you approve it before go-live.</li>
         </ul>
-        <label>Support email (where escalations reach you)
-          <input id="supportEmail" placeholder="founders@acmenotes.com"></label>
-        <button class="btn ghost" id="saveEmail" style="margin-top:10px;">Save</button>
+        <div style="display:flex; gap:10px; align-items:end; max-width:560px;">
+          <label style="flex:1;">Support email (where escalations reach you)
+            <input id="supportEmail" placeholder="founders@acmenotes.com"></label>
+          <button class="btn ghost" id="saveEmail" style="margin:0 0 1px;">Save</button>
+        </div>
       </div>
+    </details>
 
-      <div class="card wide">
-        <h2>Try your agency now</h2>
-        <p class="dim">Send a test ticket as if you were a customer — watch your crew work it
-          in Operations below, reply included. No setup needed.</p>
-        <form id="testTicketForm">
-          <label>subject <input name="subject" required value="How do I export my data?"></label>
-          <label>message <textarea name="body" required rows="3"
-            style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:9px 10px; border-radius:7px; font:inherit;">Is there a way to export everything as a zip or CSV?</textarea></label>
-          <button class="btn" type="submit">Send test ticket</button>
-        </form>
-        <p id="testStatus" class="dim" style="margin-top:10px;"></p>
+    <details class="sec" open>
+      <summary>Operations <span class="dim">— live runs, trace trees, costs, alerts</span></summary>
+      <div class="secBody" style="padding:10px;">
+        <iframe id="opsFrame" title="ops dashboard" style="margin:0;"></iframe>
       </div>
-    </div>
-
-    <h2 style="margin-top:28px;">Operations</h2>
-    <p class="dim">Live runs, trace trees, costs, and alerts for your agency.</p>
-    <iframe id="opsFrame" title="ops dashboard"></iframe>
+    </details>
   </div>
 
 </div>
@@ -352,14 +381,12 @@ const modelOptions = (selected) => {
 async function loadCrew(orgId) {
   const roles = await client().query("agency:activeRoles", { orgId });
   $("#crewRows").innerHTML = roles.map((r) => `<tr>
-    <td><b>${esc(r.name)}</b></td><td class="dim">${esc(r.job)}</td>
-    <td><select data-role-model="${r._id}" style="background:var(--bg); border:1px solid var(--line);
-        color:var(--fg); padding:6px 8px; border-radius:7px; max-width:280px;">
-      ${modelOptions(r.model)}</select></td>
+    <td><b>${esc(r.name.replaceAll("_", " "))}</b></td><td>${esc(r.job)}</td>
+    <td><select data-role-model="${r._id}">${modelOptions(r.model)}</select></td>
     <td data-price>$${priceFor(r.model).toFixed(2)}</td></tr>`).join("");
   const total = MANAGER_PRICE + roles.reduce((sum, r) => sum + priceFor(r.model), 0);
   $("#crewTotal").innerHTML =
-    `Manager <b>$${MANAGER_PRICE}/mo</b> + ${roles.length} agents = <b>$${total.toFixed(2)}/month</b>`;
+    `— manager $${MANAGER_PRICE} + ${roles.length} agents = <b>$${total.toFixed(2)}/month</b>`;
 }
 
 $("#crewRows").addEventListener("change", async (e) => {

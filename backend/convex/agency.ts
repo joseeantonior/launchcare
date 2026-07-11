@@ -525,6 +525,7 @@ export const updateRole = mutation({
     roleId: v.id("agentRoles"),
     model: v.optional(v.string()),
     active: v.optional(v.boolean()),
+    job: v.optional(v.string()),
     tools: v.optional(v.array(v.string())),
     systemPrompt: v.optional(v.string()),
     guardrails: v.optional(v.object({
