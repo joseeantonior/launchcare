@@ -7,7 +7,7 @@ Strategy notes for the event — not needed to run the project.
 1. Fill every `EDIT` in `backend/policy/policy.md` with your real numbers;
    commit and `git tag v0.1` — version tags are what makes run-diffing and
    the eval trend chart meaningful.
-2. Register the 4 roles ([usage.md](usage.md) §2).
+2. Register the 4 roles ([usage.md](usage.md) §3 — one script command).
 3. Fix the `actionlayer_reply` schema gap (`info`/`field_values`) so the
    escalate→resume loop works live.
 4. Restricted-scope Stripe key; decide the support inbox; collect the env
