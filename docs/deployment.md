@@ -159,21 +159,40 @@ Each onboarded company gets a box that runs their agent crew.
    - `PROMPT_VERSION` = the git tag you deployed, e.g. `v0.1`
 5. Make it a service that survives reboots:
    ```bash
-   cat >/etc/systemd/system/launchcare.service <<'EOF'
+   The unit below assumes the repo at `/home/<user>/launchcare` running as
+   `<user>` — replace both (cloned as root? use `/root/launchcare` and drop
+   the `User=` line). The paths must match where you actually cloned:
+   ```bash
+   tee /etc/systemd/system/launchcare.service >/dev/null <<'EOF'
    [Unit]
    Description=LaunchCare gateway
    After=network.target
    [Service]
-   WorkingDirectory=/root/launchcare/backend
-   EnvironmentFile=/root/launchcare/backend/.env
+   User=<user>
+   WorkingDirectory=/home/<user>/launchcare/backend
+   EnvironmentFile=/home/<user>/launchcare/backend/.env
    ExecStart=/usr/bin/node gateway/index.mjs
    Restart=always
    [Install]
    WantedBy=multi-user.target
    EOF
+   systemctl daemon-reload
    systemctl enable --now launchcare
    ```
 6. Check it's alive: `curl localhost:8787/health` → `{"ok":true,...}`.
+
+   **If `systemctl enable --now` fails** ("unavailable resources or another
+   system error"), the unit couldn't start the process. Check
+   `journalctl -xeu launchcare.service | tail -20`, then in order of
+   likelihood: (a) the `.env` at the unit's `EnvironmentFile` path doesn't
+   exist — systemd hard-fails on a missing `EnvironmentFile`; create it
+   (step 3-4). (b) The repo isn't where the unit's paths point — fix both
+   paths, then `systemctl daemon-reload && systemctl restart launchcare`.
+   (c) Node isn't
+   at `/usr/bin/node` or is older than 20.12 — `which node && node
+   --version`, install via nodesource, or point `ExecStart` at the right
+   path. A crash **loop** (unit starts then dies repeatedly) instead means
+   the gateway exited: usually empty `ORG_ID`/`CONVEX_URL` in `.env`.
 7. Send it a test ticket:
    ```bash
    curl -X POST localhost:8787/tickets -H 'Content-Type: application/json' \
