@@ -43,7 +43,7 @@ const MANAGER_TOOLS = [
       packet: { type: "string", description: "JSON: who, ticketRef, whatHappened, customerHistory, attempts, blocker, recommendation, policyRefs" },
     }, required: ["destination", "packet"] } } },
   { type: "function", function: { name: "finish",
-    description: "Emit the FINAL envelope and close the ticket.",
+    description: "Emit the FINAL envelope and close the ticket. This is ALSO how the reply reaches the customer (customerReply) — there is no separate send tool; do not keep working after QA passes.",
     parameters: { type: "object", properties: {
       action: { type: "string" }, summary: { type: "string" },
       policyRefs: { type: "array", items: { type: "string" } },
@@ -241,6 +241,19 @@ export async function resolveTicket({ convex, orgId, runId, ticket, fixture, mod
       usage = {}; // attach LLM usage to the first step of this batch only
       messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
     }
+    if (turn === MAX_MANAGER_TURNS - 5)
+      messages.push({ role: "user",
+        content: "Turn budget nearly exhausted — call finish() NOW with your best final action and customerReply." });
   }
-  throw new Error("manager exceeded turn budget without finishing");
+  // Budget exhausted: close policy-correctly (§6.1) instead of failing the customer.
+  await log({ agentRole: "manager", stepType: "escalation", parentStepId: planStepId,
+    inputSummary: "turn budget exhausted — auto-escalated to operator" });
+  await convex.mutation("agency:raiseAlert", { orgId, runId, type: "escalation",
+    message: "manager turn budget exhausted; auto-escalated to operator" });
+  return {
+    action: "escalate_operator",
+    summary: "Turn budget exhausted; escalated to a human operator with the full trace.",
+    policyRefs: ["§6.1"],
+    customerReply: "We're on it — a human teammate is reviewing your request and will follow up shortly.",
+  };
 }
