@@ -1,7 +1,8 @@
 # Usage
 
 How to run and use LaunchCare locally. Deployment: [deployment.md](deployment.md).
-Agent internals: [gateway.md](gateway.md). Big picture: [architecture.md](architecture.md).
+Agent internals: [gateway.md](gateway.md). Customer app: [user-dashboard.md](user-dashboard.md).
+Big picture: [architecture.md](architecture.md).
 
 ## Prerequisites
 
@@ -34,21 +35,28 @@ in: `npx convex dev`.
 
 ## 2. Create an organization
 
-Everything is org-scoped (multi-tenant). Bootstrap one — this also seeds its
-default settings (guardrails, `managerModel`, names):
+Everything is org-scoped (multi-tenant). Two ways:
+
+- **Through the app** (the real signup flow): serve the website (§5), open
+  `/app.html`, fill in the onboarding form — this creates the org, seeds its
+  settings, **and registers the default crew** in one step. Without Auth0
+  configured it runs in dev mode (no sign-in) — see
+  [user-dashboard.md](user-dashboard.md).
+- **CLI** (admin path — settings only, no crew):
+  ```bash
+  CONVEX_AGENT_MODE=anonymous npx convex run agency:createOrganization '{"name":"demo","website":"https://example.com"}'
+  # → returns the orgId
+  ```
+
+## 3. Register the specialist crew (CLI-created orgs only)
+
+`convex/defaultCrew.js` is the single source of truth (role, prompt, tools,
+guardrails, Novita model per role); `prompts/specialists.md` is its
+human-readable companion. App-onboarded orgs get the crew automatically; for
+CLI-created orgs:
 
 ```bash
-CONVEX_AGENT_MODE=anonymous npx convex run agency:createOrganization '{"name":"demo","website":"https://example.com"}'
-# → returns the orgId; you'll use it everywhere below
-```
-
-## 3. Register the specialist crew
-
-`prompts/specialists.md` is the single source of truth (role JSON + prompt +
-Novita model per role). Register all four in one command (idempotent):
-
-```bash
-node scripts/register-roles.mjs --org <orgId>
+node scripts/register-roles.mjs --org <orgId>   # idempotent
 ```
 
 Or create roles one-off in the dashboard (Roles tab → Create role — this is
@@ -70,15 +78,22 @@ ORG_ID=<orgId> CONVEX_URL=http://127.0.0.1:3210 NOVITA_API_KEY=<key> node gatewa
 
 Details of the crew loop, tools, and model tiers: [gateway.md](gateway.md).
 
-## 5. Dashboard — run locally
+## 5. Website — run locally
 
 ```bash
 npx serve website          # or: python3 -m http.server 8080 -d website
 ```
 
-`/` is the product landing page; the ops dashboard is at `/dashboard.html`.
-Paste your Convex URL in the top bar, then **pick the org** in the dropdown
-(both persist in localStorage). Tabs:
+Three pages:
+
+- `/` — product landing page.
+- `/app.html` — the **customer app**: sign-in, onboarding, your crew, your
+  ops view. Locally without `config.js` it asks for the Convex URL and runs
+  in dev mode; copy `config.example.js` → `config.js` to configure
+  ([user-dashboard.md](user-dashboard.md)).
+- `/dashboard.html` — the **internal ops dashboard** (sees every org).
+  Paste your Convex URL in the top bar, then pick the org in the dropdown
+  (both persist in localStorage). Tabs:
 
 - **Runs** — filter, click a run for its trace tree, check two runs to diff.
 - **Cost by agent** — spend/tokens/steps per role, last 24 h.

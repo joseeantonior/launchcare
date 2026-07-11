@@ -1,5 +1,7 @@
 node_modules/
 .env.local
 .convex/
+website/config.js
+backend/.env
 backend/convex/_generated/
 backend/evals/results-*.json

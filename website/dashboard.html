@@ -135,8 +135,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const cell = (s) => esc(maskEmail(s));
 
+// Embed mode (from app.html): ?org=<id>&url=<convexUrl>&embed=1 locks the
+// dashboard to one org and hides the connection controls.
+const qp = new URLSearchParams(location.search);
+const forcedOrg = qp.get("org");
+
 const urlInput = $("#deployUrl");
-urlInput.value = localStorage.getItem("convexUrl") ?? "";
+urlInput.value = qp.get("url") ?? localStorage.getItem("convexUrl") ?? "";
 urlInput.addEventListener("change", () => {
   localStorage.setItem("convexUrl", urlInput.value.trim());
   loadOrgs().then(refresh);
@@ -144,13 +149,18 @@ urlInput.addEventListener("change", () => {
 const client = () => convexClient(urlInput.value.trim().replace(/\/$/, ""));
 
 const orgSelect = $("#orgSelect");
-const orgId = () => orgSelect.value;
+const orgId = () => forcedOrg ?? orgSelect.value;
 orgSelect.addEventListener("change", () => {
   localStorage.setItem("orgId", orgSelect.value);
   refresh();
 });
+if (qp.get("embed")) {
+  urlInput.style.display = "none";
+  orgSelect.style.display = "none";
+  document.querySelector("header h1").style.display = "none";
+}
 async function loadOrgs() {
-  if (!urlInput.value.trim()) return;
+  if (!urlInput.value.trim() || forcedOrg) return;
   try {
     const orgs = await client().query("agency:listOrganizations", {});
     const saved = localStorage.getItem("orgId");

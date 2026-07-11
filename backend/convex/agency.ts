@@ -4,12 +4,36 @@
 
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { defaultCrew } from "./defaultCrew.js";
 
 const now = () => Date.now();
 
 // ---------------------------------------------------------- organizations
-// Signup bootstrap: creates the org AND seeds its default guardrail
-// settings. This replaces the old `seed` mutation.
+async function insertOrgWithDefaults(ctx: any, args: {
+  name: string; website?: string; auth0UserId?: string;
+}) {
+  const orgId = await ctx.db.insert("organizations", {
+    ...args,
+    createdAt: now(),
+  });
+  const defaults: Array<[string, any]> = [
+    ["costSpikeUsd", 1.5],
+    ["maxRefundAutoUsd", 25],
+    ["perTicketBudgetUsd", 0.5],
+    ["compBudgetPerCustomerUsd", 30],
+    ["managerModel", "pa/claude-opus-4-8"], // Novita partner model id; edit in dashboard
+    // $/MTok per model — fill from your Novita account-manager pricing.
+    ["modelPricesUsdPerMTok", {}],
+    ["agencyName", "LaunchCare"],
+    ["productName", args.name],
+  ];
+  for (const [key, value] of defaults) {
+    await ctx.db.insert("settings", { orgId, key, value, updatedAt: now() });
+  }
+  return orgId;
+}
+
+// Admin/CLI bootstrap (org + settings, no crew):
 //   npx convex run agency:createOrganization '{"name":"demo"}'
 export const createOrganization = mutation({
   args: {
@@ -17,26 +41,47 @@ export const createOrganization = mutation({
     website: v.optional(v.string()),
     auth0UserId: v.optional(v.string()),
   },
+  handler: async (ctx, args) => await insertOrgWithDefaults(ctx, args),
+});
+
+// Signup from the User Dashboard: org + settings + default crew, bound to
+// the signed-in Auth0 user. Idempotent per user — a second call returns
+// their existing org. Unauthenticated calls work too (dev mode, no Auth0
+// configured) but create an unbound org each time.
+export const onboardOrganization = mutation({
+  args: { name: v.string(), website: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const orgId = await ctx.db.insert("organizations", {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      const existing = await ctx.db
+        .query("organizations")
+        .withIndex("by_auth0UserId", (q) => q.eq("auth0UserId", identity.subject))
+        .first();
+      if (existing) return existing._id;
+    }
+    const orgId = await insertOrgWithDefaults(ctx, {
       ...args,
-      createdAt: now(),
+      auth0UserId: identity?.subject,
     });
-    const defaults: Array<[string, any]> = [
-      ["costSpikeUsd", 1.5],
-      ["maxRefundAutoUsd", 25],
-      ["perTicketBudgetUsd", 0.5],
-      ["compBudgetPerCustomerUsd", 30],
-      ["managerModel", "pa/claude-opus-4-8"], // Novita partner model id; edit in dashboard
-      // $/MTok per model — fill from your Novita account-manager pricing.
-      ["modelPricesUsdPerMTok", {}],
-      ["agencyName", "LaunchCare"],
-      ["productName", args.name],
-    ];
-    for (const [key, value] of defaults) {
-      await ctx.db.insert("settings", { orgId, key, value, updatedAt: now() });
+    for (const role of defaultCrew) {
+      await ctx.db.insert("agentRoles", {
+        orgId, ...role, active: true, createdBy: "founder", createdAt: now(),
+      });
     }
     return orgId;
+  },
+});
+
+// The signed-in user's org (null when unauthenticated or not onboarded).
+export const myOrganization = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return await ctx.db
+      .query("organizations")
+      .withIndex("by_auth0UserId", (q) => q.eq("auth0UserId", identity.subject))
+      .first();
   },
 });
 

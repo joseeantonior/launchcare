@@ -35,23 +35,29 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
   tiers, guardrails enforced in code, full trace observability, evals with a
   regression gate, the ops dashboard. Verified end-to-end with the mock
   runner; live-LLM path needs `NOVITA_API_KEY`.
-- **Tenant bootstrap, scripted**: `agency:createOrganization` (org + default
-  settings) + `scripts/register-roles.mjs` (seed crew from specialists.md).
+- **User Dashboard** (`app.html`): Auth0 sign-in (dev mode without it),
+  onboarding that creates the org + settings + default crew in one mutation
+  and binds it to the Auth0 user, customer home with the org-locked ops
+  view embedded. Config via Cloudflare Worker vars → `/config.js`.
+  See [user-dashboard.md](user-dashboard.md).
+- **Tenant bootstrap**: app onboarding (full), or CLI
+  (`agency:createOrganization` + `scripts/register-roles.mjs`; crew data in
+  `convex/defaultCrew.js`).
 
 ## What's planned (in build order)
 
-1. **User Dashboard app** — Auth0 sign-in, onboarding wizard (company name +
-   website), tool connections. Auth0 org → `organizations.auth0UserId`.
-2. **Scrape → org designer pipeline** — fetch the tenant's website, extract
+1. **Scrape → org designer pipeline** — fetch the tenant's website, extract
    docs/pricing/use-cases into `knowledge/*.md`, draft their `policy.md`, and
    propose the crew (roles + model tiers). **The customer reviews the drafted
    policy before go-live** — policy is the law; scrapers guess numbers wrong.
-3. **Provisioner** — Linode API + cloud-init from a golden image: installs
+   (Onboarding currently seeds the default crew; this pipeline personalizes it.)
+2. **Provisioner** — Linode API + cloud-init from a golden image: installs
    Node + the backend folder, writes tenant env (Convex URL, org id, Novita
-   key, Stripe key), starts the gateway under systemd. Same script works for
-   the shared-box tier (one container per tenant) if per-tenant Linodes turn
+   key, Stripe key), starts the gateway under systemd — exactly the manual
+   Step 5 in [deployment.md](deployment.md). Same script works for the
+   shared-box tier (one container per tenant) if per-tenant Linodes turn
    out too expensive at the low end.
-4. **Channel connectors** — per-tenant inbound email address
+3. **Channel connectors** — per-tenant inbound email address
    (`acme@inbound.<domain>` via Postmark/SES webhook → `POST /tickets`),
    Telegram bot, phone via ElevenLabs. Plus the escalation resume loop
    (ActionLayer for operator, Telegram for founder).
@@ -59,14 +65,22 @@ CONTROL PLANE (build once)                DATA PLANE (one per tenant)
 ## Security notes (before real money flows)
 
 - Convex functions are currently public — anyone with the deployment URL can
-  call any of them. Gate mutations behind Convex auth or a shared-secret HTTP
-  action before production.
+  call any of them. Auth0 identity is now **used** (onboarding binds orgs,
+  `myOrganization`) but not **required** anywhere. Next hardening step:
+  require identity on customer-facing mutations, give gateway boxes a
+  shared-secret header, restrict the admin dashboard queries.
 - Tenant secrets live only on the tenant's box (env), never in Convex.
 - Stripe keys should be restricted scope: charges:read + refunds:write.
 - PII is masked in every trace summary and dashboard surface.
 
 ## Billing model
 
-Per-step tokens/cost roll up to runs (`costUsd` via the org's
-`modelPricesUsdPerMTok` setting) → per-org COGS is one `costByAgent`-style
-query away. Price = token cost × margin + box fee.
+**Revenue** — per-agent subscriptions ([user-dashboard.md](user-dashboard.md)
+→ Pricing): manager $4.99/mo + each specialist $4.99–$19.99/mo by model
+tier. Displayed and totaled in the app today; checkout not yet wired.
+
+**COGS** — per-step tokens/cost roll up to runs (`costUsd` via the org's
+`modelPricesUsdPerMTok` setting) → per-org cost is one `costByAgent`-style
+query away, plus the box fee. The tier prices are set so the margin covers
+typical token volume; the cost rollups tell you when a tenant breaks the
+model.
